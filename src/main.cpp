@@ -1,5 +1,6 @@
 #include <iostream>
 #include <string>
+#include <sstream>
 #include <array>
 #include <assert.h>
 
@@ -39,89 +40,61 @@ GameState decodeFEN(const std::string& s)
 {
 	GameState ret;
 	int boardIndex = 0;
-	int fenFieldNumber = 0;
+	std::stringstream ss(s);
+	std::string board, turn, castling, enpassant, halfmove, fullmove;
+	ss >> board >> turn >> castling >> enpassant >> ret.halfmoves >> ret.fullmoves;
 
-	std::array<char, 8> halfmoveCtrBuf = { 0 }, fullmoveCtrBuf = { 0 }, enpassantBuf = { 0 };
-	int enpassantBufPos = 0, halfmoveCtrBufPos = 0, fullmoveCtrBufPos = 0;
-	for (int i = 0; i < s.length(); ++i)
+	ret.whitesTurn = turn[0] == 'w';
+	for (auto it : board)
 	{
-		if (s[i] == ' ')
+		if (it >= '1' && it <= '8')
 		{
-			fenFieldNumber++;
-			continue;
-		}
-		if (fenFieldNumber == 0)
-		{
-			if (s[i] >= '1' && s[i] <= '8')
+			for (int j = 0; j <= it - '1'; ++j)
 			{
-				for (int j = 0; j <= s[i] - '1'; ++j)
-				{
-					ret.board[boardIndex++] = EMPTY;
-				}
-			}
-			else
-			{
-				switch (s[i])
-				{
-					//case '/': break;
-				case 'P': ret.board[boardIndex++] = WHITE_PAWN; break;
-				case 'N': ret.board[boardIndex++] = WHITE_KNIGHT; break;
-				case 'B': ret.board[boardIndex++] = WHITE_BISHOP; break;
-				case 'R': ret.board[boardIndex++] = WHITE_ROOK; break;
-				case 'Q': ret.board[boardIndex++] = WHITE_QUEEN; break;
-				case 'K': ret.board[boardIndex++] = WHITE_KING; break;
-				case 'p': ret.board[boardIndex++] = BLACK_PAWN; break;
-				case 'n': ret.board[boardIndex++] = BLACK_KNIGHT; break;
-				case 'b': ret.board[boardIndex++] = BLACK_BISHOP; break;
-				case 'r': ret.board[boardIndex++] = BLACK_ROOK; break;
-				case 'q': ret.board[boardIndex++] = BLACK_QUEEN; break;
-				case 'k': ret.board[boardIndex++] = BLACK_KING; break;
-				default: break;
-				}
+				ret.board[boardIndex++] = EMPTY;
 			}
 		}
-		else if (fenFieldNumber == 1) ret.whitesTurn = s[i] == 'w';
-		else if (fenFieldNumber == 2)
+		else
 		{
-			switch (s[i])
+			switch (it)
 			{
-			case 'K': ret.whiteCanKingsideCastle = true; break;
-			case 'Q': ret.whiteCanQueensideCastle = true; break;
-			case 'k': ret.blackCanKingsideCastle = true; break;
-			case 'q': ret.blackCanQueensideCastle = true; break;
+				//case '/': break;
+			case 'P': ret.board[boardIndex++] = WHITE_PAWN; break;
+			case 'N': ret.board[boardIndex++] = WHITE_KNIGHT; break;
+			case 'B': ret.board[boardIndex++] = WHITE_BISHOP; break;
+			case 'R': ret.board[boardIndex++] = WHITE_ROOK; break;
+			case 'Q': ret.board[boardIndex++] = WHITE_QUEEN; break;
+			case 'K': ret.board[boardIndex++] = WHITE_KING; break;
+			case 'p': ret.board[boardIndex++] = BLACK_PAWN; break;
+			case 'n': ret.board[boardIndex++] = BLACK_KNIGHT; break;
+			case 'b': ret.board[boardIndex++] = BLACK_BISHOP; break;
+			case 'r': ret.board[boardIndex++] = BLACK_ROOK; break;
+			case 'q': ret.board[boardIndex++] = BLACK_QUEEN; break;
+			case 'k': ret.board[boardIndex++] = BLACK_KING; break;
 			default: break;
 			}
 		}
-		else if (fenFieldNumber == 3)
+	}
+	for (auto it : castling)
+	{
+		switch (it)
 		{
-			if (enpassantBufPos >= enpassantBuf.size()) throw std::runtime_error("Enpassant overflow");
-			enpassantBuf[enpassantBufPos++] = s[i];
+		case 'K': ret.whiteCanKingsideCastle = true; break;
+		case 'Q': ret.whiteCanQueensideCastle = true; break;
+		case 'k': ret.blackCanKingsideCastle = true; break;
+		case 'q': ret.blackCanQueensideCastle = true; break;
+		default: break;
 		}
-		else if (fenFieldNumber == 4)
-		{
-			if (halfmoveCtrBufPos >= halfmoveCtrBuf.size()) throw std::runtime_error("Halfmove counter overflow");
-			halfmoveCtrBuf[halfmoveCtrBufPos++] = s[i];
-		}
-		else if (fenFieldNumber == 5)
-		{
-			if (fullmoveCtrBufPos >= fullmoveCtrBuf.size()) throw std::runtime_error("Fullmove counter overflow");
-			fullmoveCtrBuf[fullmoveCtrBufPos++] = s[i];
-		}
-		else std::cerr << "FEN field counter: " << fenFieldNumber << " out of range for char at index " << i << ", skipping.\n";
+	}
+	if (enpassant[0] != '-')
+	{
+		int rank = enpassant[1] - '1'; //0 indexed
+		int file = enpassant[0] - 'a'; //0 indexed;
+		ret.enpassant = (7 - rank) * 8 + file;
 	}
 
 	for (auto& it : ret.board) assert(it != UNINITIALIZED);
-	assert(enpassantBufPos == 1 || enpassantBufPos == 2);
-	if (enpassantBuf[0] == '-') ret.enpassant = -1;
-	else
-	{
-		int rank = enpassantBuf[1] - '1'; //0 indexed
-		int file = enpassantBuf[0] - 'a'; //0 indexed;
-		ret.enpassant = (7 - rank) * 8 + file;
-	}
-	ret.halfmoves = atol(halfmoveCtrBuf.data());
-	ret.fullmoves = atol(fullmoveCtrBuf.data());
-
+	assert(enpassant.size() == 1 || enpassant.size() == 2);
 	return ret;
 }
 int main()
