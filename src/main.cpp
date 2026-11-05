@@ -110,7 +110,7 @@ struct GameState
 	void rankFileToXY(const char* rankAndFile, int& retX, int& retY)
 	{
 		assert(rankAndFile[0] >= 'a' && rankAndFile[0] <= 'h');
-		assert(rankAndFile[1] >= '1' && rankAndFile[0] <= '8');
+		assert(rankAndFile[1] >= '1' && rankAndFile[1] <= '8');
 		retX = rankAndFile[0] - 'a';
 		retY = 7 - (rankAndFile[1] - '1');
 	}
@@ -160,29 +160,67 @@ struct GameState
 		}
 	}
 
+	bool isLegalCastlingMove(Move move)
+	{
+		if (!move.isCastlingMove()) return false;
+		std::optional<std::pair<Piece&, Piece&>> castlingPieces = getPiecesAtCaslingSquares(move);
+
+		//castling locations are hardcoded
+		if (
+			(!whiteCanKingsideCastle && move.type == MoveType::WHITE_KINGSIDE_CASTLE) ||
+			(!blackCanKingsideCastle && move.type == MoveType::BLACK_KINGSIDE_CASTLE) ||
+			(!blackCanQueensideCastle && move.type == MoveType::BLACK_QUEENSIDE_CASTLE) ||
+			(!whiteCanQueensideCastle && move.type == MoveType::WHITE_QUEENSIDE_CASTLE)) return false;
+		Piece& king = castlingPieces->first;
+		Piece& rook = castlingPieces->second;
+		if (king.type != PieceType::KING || rook.type != PieceType::ROOK || king.hasMoved || rook.hasMoved || king.team != rook.team) return false;
+
+		Team castleTeam = (move.type == MoveType::WHITE_KINGSIDE_CASTLE || move.type == MoveType::WHITE_QUEENSIDE_CASTLE) ? Team::WHITE : Team::BLACK;
+		bool kingsideCastle = (move.type == MoveType::WHITE_KINGSIDE_CASTLE || move.type == MoveType::BLACK_KINGSIDE_CASTLE);
+		if (castleTeam != king.team) return false;
+		if ((castleTeam == Team::WHITE) != whitesTurn) return false; //can't castle on enemies turn!
+
+		std::array<int, 3> attackedCheckX, obstructionCheckX;
+		int kingY = castleTeam == Team::BLACK ? 0 : 7;
+		if (kingsideCastle)
+		{
+			attackedCheckX = { 4,5,6 };
+			obstructionCheckX = { 5,6,6 }; //duplicate last one as a hacky way to simplify next code (so length always stays at 3)
+		}
+		else
+		{
+			attackedCheckX = { 4,3,2 };
+			obstructionCheckX = { 3,2,1 };
+		}
+
+		for (int i = 0; i < 3; ++i)
+		{
+			if (getPieceAt(obstructionCheckX[i], kingY).type != PieceType::EMPTY || squareIsAttackedFor(attackedCheckX[i], kingY, castleTeam)) return false;
+		}
+		return true;
+	}
+
 	//Checks if a move is legal, considering input Move adversarial (checking the validity of inputs, legality of the move, king checks). There're no requirements for src, dst squares or movement types, but hasMoved flag is trusted as-is (since it's filled out by our engine)
 	bool isMoveLegal(Move move)
 	{
 		bool isCastling = move.isCastlingMove();
-		std::optional<std::pair<Piece&, Piece&>> castlingPieces;
-		if (!isCastling) //castling locations are hardcoded, thus, these checks have to be omitted for them
+		if (isCastling)
 		{
-			if (move.srcX < 0 || move.srcX >= 8 ||
-				move.srcY < 0 || move.srcY >= 8 ||
-				move.dstX < 0 || move.dstX >= 8 ||
-				move.dstY < 0 || move.dstY >= 8) return false;
+			return isLegalCastlingMove(move);
+		}
 
-			if (move.dstX == move.srcX && move.dstY == move.srcY) return false; //nothing burger
-		}
-		else
-		{
-			castlingPieces = getPiecesAtCaslingSquares(move);
-		}
+		//Non-castling, i.e. move or move+promote
+		if (move.srcX < 0 || move.srcX >= 8 ||
+			move.srcY < 0 || move.srcY >= 8 ||
+			move.dstX < 0 || move.dstX >= 8 ||
+			move.dstY < 0 || move.dstY >= 8) return false;
+		if (move.dstX == move.srcX && move.dstY == move.srcY) return false; //nothing burger
 
 		const Piece& movingPiece = getPieceAt(move.srcX, move.srcY);
 		const Piece& targetPiece = getPieceAt(move.dstX, move.dstY);
 		assert(movingPiece.type != PieceType::UNINITIALIZED);
 		assert(targetPiece.type != PieceType::UNINITIALIZED);
+		if ((movingPiece.team == Team::WHITE) != whitesTurn) return false; //can't move other side's pieces
 
 		//redundant simplifications
 		int dx = move.dstX - move.srcX;
@@ -190,141 +228,107 @@ struct GameState
 		auto targetPair = std::make_pair(move.dstX, move.dstY);
 		if (movingPiece.type == PieceType::EMPTY) return false; //voids can't move
 
-		//filter out non-pawn promotions (can be encoded, but is never legal)
+		//filter out non-pawn promotions (can be encoded, but are never legal)
 		auto promotionTarget = move.getPromotionTarget();
 		if (promotionTarget && movingPiece.type != PieceType::PAWN) return false;
 
-		//GameState stateWithMoveApplied = *this; //will be modified by 
 		//checks the legality of the move WITHOUT verifying if the kings are checked (thus, a move that leaves allied king checked will pass this for instance). That verification is ran later
 		bool isLegalWithUncheckedKing = [&]() {
-			if (isCastling)
+			if (targetPiece.team == movingPiece.team) return false; //obstructed by ally
+			if (targetPiece.type == PieceType::KING) return false; //can't capture king
+
+			std::array<std::optional<std::pair<int, int>>, 8> pathingLimits;
+			int limitsLen = 0;
+			//basic movement
+			if (movingPiece.type == PieceType::KNIGHT)
 			{
-				if (
-					(!whiteCanKingsideCastle && move.type == MoveType::WHITE_KINGSIDE_CASTLE) ||
-					(!blackCanKingsideCastle && move.type == MoveType::BLACK_KINGSIDE_CASTLE) ||
-					(!blackCanQueensideCastle && move.type == MoveType::BLACK_QUEENSIDE_CASTLE) ||
-					(!whiteCanQueensideCastle && move.type == MoveType::WHITE_QUEENSIDE_CASTLE)) return false;
-				Piece& king = castlingPieces->first;
-				Piece& rook = castlingPieces->second;
-				if (king.type != PieceType::KING || rook.type != PieceType::ROOK || king.hasMoved || rook.hasMoved || king.team != rook.team) return false;
+				//only 8 jump destinations available
+				bool goodJump = (std::abs(dx) == 1 && std::abs(dy) == 2) || (std::abs(dx) == 2 && std::abs(dy) == 1);
+				if (!goodJump) return false;
+			}
+			if (movingPiece.type == PieceType::ROOK || movingPiece.type == PieceType::QUEEN)
+			{
+				pathingLimits[limitsLen++] = this->getPathingLimits(move, -1, 0); //left
+				pathingLimits[limitsLen++] = this->getPathingLimits(move, 1, 0); //right
+				pathingLimits[limitsLen++] = this->getPathingLimits(move, 0, -1); //up
+				pathingLimits[limitsLen++] = this->getPathingLimits(move, 0, 1); //down
+			}
+			if (movingPiece.type == PieceType::BISHOP || movingPiece.type == PieceType::QUEEN)
+			{
+				pathingLimits[limitsLen++] = this->getPathingLimits(move, -1, -1); //left-up diagonal
+				pathingLimits[limitsLen++] = this->getPathingLimits(move, 1, -1); //right-up
+				pathingLimits[limitsLen++] = this->getPathingLimits(move, -1, 1); //left-down
+				pathingLimits[limitsLen++] = this->getPathingLimits(move, 1, 1); //right-down
+			}
 
-				Team castleTeam = (move.type == MoveType::WHITE_KINGSIDE_CASTLE || move.type == MoveType::WHITE_QUEENSIDE_CASTLE) ? Team::WHITE : Team::BLACK;
-				bool kingsideCastle = (move.type == MoveType::WHITE_KINGSIDE_CASTLE || move.type == MoveType::BLACK_KINGSIDE_CASTLE);
-				if (castleTeam != king.team) return false;
-
-				std::array<int, 3> attackedCheckX, obstructionCheckX;
-				int kingY = castleTeam == Team::BLACK ? 0 : 7;
-				if (kingsideCastle)
+			if (movingPiece.type == PieceType::PAWN)
+			{
+				auto promotionTarget = move.getPromotionTarget();
+				if (promotionTarget)
 				{
-					attackedCheckX = { 4,5,6 };
-					obstructionCheckX = { 5,6,6 }; //duplicate last one as a hacky way to simplify next code (so length always stays at 3)
+					//can promote only if on last rank
+					if (movingPiece.team == Team::WHITE && move.dstY != 0) return false;
+					if (movingPiece.team == Team::BLACK && move.dstY != 7) return false;
 				}
 				else
 				{
-					attackedCheckX = { 4,3,2 };
-					obstructionCheckX = { 3,2,1 };
+					//cannot stay as pawn on last rank, promotion required
+					if (movingPiece.team == Team::WHITE && move.dstY == 0) return false;
+					if (movingPiece.team == Team::BLACK && move.dstY == 7) return false;
 				}
 
-				for (int i = 0; i < 3; ++i)
+				int normDy = movingPiece.team == Team::WHITE ? -dy : dy; //dy modified to be positive for respective team's forward direction
+				int normStep = movingPiece.team == Team::WHITE ? -1 : 1; //single steps modified to be positive for respective team's forward direction
+
+				if (normDy < 1) return false; //pawns can't stay in place or go backwards
+				if (movingPiece.hasMoved && normDy != 1) return false; //already moved pawns can only move by 1 step forward
+				if (!movingPiece.hasMoved && normDy > 2) return false; //if pawn hasn't moved, it can't go more than 2 steps forward
+					
+
+				if (abs(dx) > 1) return false; //pawns can't move more that 1 file to the sides
+				if (dx != 0 && normDy == 2) return false; //can only move forward 2 steps
+
+				if (enpassantX == move.dstX && enpassantY == move.dstY)	return (abs(dx) == 1 && abs(dy) == 1);
+
+				if (targetPiece.type == PieceType::EMPTY)
 				{
-					if (getPieceAt(obstructionCheckX[i], kingY).type != PieceType::EMPTY || squareIsAttackedFor(attackedCheckX[i], kingY, castleTeam)) return false;
+					bool capturingEnpassant = enpassantX == move.dstX && enpassantY == move.dstY;
+					if (capturingEnpassant && abs(dx) != 1 && normDy != 1) return false;
+					if (dx != 0) return false; //pawns can only move diagonally if capturing
 				}
-				return true;
-			}
-
-			else //promotion or simple movements // (move.type != MoveType::CASTLE) 
-			{
-				if (targetPiece.team == movingPiece.team) return false; //obstructed by ally
-				if (targetPiece.type == PieceType::KING) return false; //can't capture king
-
-				std::array<std::optional<std::pair<int, int>>, 8> pathingLimits;
-				int limitsLen = 0;
-				//basic movement
-				if (movingPiece.type == PieceType::KNIGHT)
+				else
 				{
-					//only 8 jump destinations available
-					bool goodJump = (std::abs(dx) == 1 && std::abs(dy) == 2) || (std::abs(dx) == 2 && std::abs(dy) == 1);
-					if (!goodJump) return false;
-				}
-				if (movingPiece.type == PieceType::ROOK || movingPiece.type == PieceType::QUEEN)
-				{
-					pathingLimits[limitsLen++] = this->getPathingLimits(move, -1, 0); //left
-					pathingLimits[limitsLen++] = this->getPathingLimits(move, 1, 0); //right
-					pathingLimits[limitsLen++] = this->getPathingLimits(move, 0, -1); //up
-					pathingLimits[limitsLen++] = this->getPathingLimits(move, 0, 1); //down
-				}
-				if (movingPiece.type == PieceType::BISHOP || movingPiece.type == PieceType::QUEEN)
-				{
-					pathingLimits[limitsLen++] = this->getPathingLimits(move, -1, -1); //left-up diagonal
-					pathingLimits[limitsLen++] = this->getPathingLimits(move, 1, -1); //right-up
-					pathingLimits[limitsLen++] = this->getPathingLimits(move, -1, 1); //left-down
-					pathingLimits[limitsLen++] = this->getPathingLimits(move, 1, 1); //right-down
-				}
-
-				if (movingPiece.type == PieceType::PAWN)
-				{
-					auto promotionTarget = move.getPromotionTarget();
-					if (promotionTarget)
-					{
-						//can promote only if on last rank
-						if (movingPiece.team == Team::WHITE && move.dstY != 0) return false;
-						if (movingPiece.team == Team::BLACK && move.dstY != 7) return false;
-					}
-					else
-					{
-						//cannot stay as pawn on last rank, promotion required
-						if (movingPiece.team == Team::WHITE && move.dstY == 0) return false;
-						if (movingPiece.team == Team::BLACK && move.dstY == 7) return false;
-					}
-
-					int normDy = movingPiece.team == Team::WHITE ? -dy : dy; //dy modified to be positive for respective team's forward direction
-					int normStep = movingPiece.team == Team::WHITE ? -1 : 1; //single steps modified to be positive for respective team's forward direction
-					if (normDy < 1 || normDy > 2) return false; //pawns can't stay in place, go backwards or go more than 2 ranks at a time
-					if (normDy == 2 && movingPiece.hasMoved) return false; //pawns move by 2 ranks only on first move
-
-					if (abs(dx) > 1) return false; //pawns can't move more that 1 file to the sides
-
-					if (enpassantX == move.dstX && enpassantY == move.dstY)	return (abs(dx) == 1 && abs(dy) == 1);
-
-					if (targetPiece.type == PieceType::EMPTY)
-					{
-						if (dx != 0) return false; //pawns can only move diagonally if capturing
-					}
-					else
-					{
-						if (abs(dx) != 1) return false; //can't capture without diagonal move
-						return true;
-					}
-
-					pathingLimits[limitsLen++] = this->getPathingLimits(move, 0, normStep);
-				}
-
-				if (movingPiece.type == PieceType::KING)
-				{
-					if (abs(dx) > 1 || abs(dy) > 1) return false;
+					if (abs(dx) != 1) return false; //can't capture without diagonal move
 					return true;
 				}
 
-				if (limitsLen != 0) //scan pathingLimits only if piece is a type that uses that movement (not Knight). Otherwise, it's empty, and if (!pathFound) would return false denials
+				pathingLimits[limitsLen++] = this->getPathingLimits(move, 0, normStep);
+			}
+
+			if (movingPiece.type == PieceType::KING)
+			{
+				if (abs(dx) > 1 || abs(dy) > 1) return false;
+				return true;
+			}
+
+			if (limitsLen != 0) //scan pathingLimits only if piece is a type that uses that movement (not Knight). Otherwise, it's empty, and if (!pathFound) would return false denials
+			{
+				assert(movingPiece.type != PieceType::KNIGHT);
+				bool pathFound = false;
+				for (int i = 0; i < limitsLen; ++i)
 				{
-					assert(movingPiece.type != PieceType::KNIGHT);
-					bool pathFound = false;
-					for (int i = 0; i < limitsLen; ++i)
+					if (pathingLimits[i] && pathingLimits[i].value() == targetPair)
 					{
-						if (pathingLimits[i] && pathingLimits[i].value() == targetPair)
-						{
-							pathFound = true; break;
-						}
+						pathFound = true; break;
 					}
-					if (!pathFound) return false;
 				}
+				if (!pathFound) return false;
 			}
 
 			return true;
-			}();
+		}();
 
 		if (!isLegalWithUncheckedKing) return false;
-		if (isCastling) return isLegalWithUncheckedKing; //castling check already self-sufficient
 
 		//For movements and promotions, copy the game state, alter it with the attempted move and see if that leaves/puts moving side's king in check
 		auto cpy = *this;
@@ -332,10 +336,10 @@ struct GameState
 		if (promotionTarget)
 		{
 			dstPiece.type = *promotionTarget;
-			dstPiece.hasMoved = true;
 			dstPiece.team = movingPiece.team;
 		}
 		else dstPiece = movingPiece;
+		dstPiece.hasMoved = true;
 		cpy.getPieceAt(move.srcX, move.srcY).type = PieceType::EMPTY;
 
 		if (cpy.whitesTurn && cpy.whiteIsChecked()) return false;
