@@ -6,29 +6,29 @@
 #include <vector>
 #include <optional>
 
-enum Team
-{
-	WHITE,
-	BLACK,
-};
+#include "GameState.h"
+#include "Piece.h"
 
-enum class PieceType
+/*
+class Piece
 {
-	PAWN,
-	ROOK,
-	QUEEN,
-	KING,
-	BISHOP,
-	KNIGHT,
-	EMPTY,
-	UNINITIALIZED,
-};
-struct Piece
-{
-	PieceType type = PieceType::UNINITIALIZED;
-	Team team;
-	bool hasMoved = false;
-};
+public:
+	PieceType __declspec(property(get = get_type, put = set_type)) type;
+
+	PieceType get_type() const
+	{
+		return static_cast<PieceType>(data & 7);
+	}
+
+	void set_type(PieceType type)
+	{
+		static_assert(static_cast<uint8_t>(PieceType::COUNT) <= 8);
+		data &= ~((1 << 4) - 1);
+		data |= static_cast<uint8_t>(type);
+	}
+private:
+	uint8_t data;
+};*/
 
 enum class MoveType
 {
@@ -85,14 +85,14 @@ struct Move
 //arr[i] shows the allowed squares for this piece.
 //arr[6] == 10 means that piece at index 6 is allowed to move only to index 1 and 3 (10 == 2 | 8 == (1<<1) | (1<<3))
 //values at and after index `size` are garbage
-typedef std::array<uint64_t, 64> LegalMoves;
+
 /*
 struct LegalMoveArray
 {
 	std::array<uint64_t, 64> arr;
 	int size = 0;
 };*/
-struct GameState
+struct __GameState
 {
 	std::array<Piece, 64> board;
 	bool blackCanQueensideCastle = false, blackCanKingsideCastle = false;
@@ -288,7 +288,7 @@ struct GameState
 				if (abs(dx) > 1) return false; //pawns can't move more that 1 file to the sides
 				if (dx != 0 && normDy == 2) return false; //can only move forward 2 steps
 
-				if (enpassantX == move.dstX && enpassantY == move.dstY)	return (abs(dx) == 1 && abs(dy) == 1);
+				if (enpassantX == move.dstX && enpassantY == move.dstY)	return (abs(dx) == 1 && normDy == 1);
 
 				if (targetPiece.type == PieceType::EMPTY)
 				{
@@ -356,9 +356,9 @@ struct GameState
 		std::optional<std::pair<int, int>> ret;
 		const Piece& srcPiece = getPieceAt(move.srcX, move.srcY);
 
-		for (
-			int x = move.srcX + stepX,
-			int y = move.srcY + stepY;
+		int x = move.srcX + stepX;
+		int y = move.srcY + stepY;
+		for (;
 			y >= 0 && y < 8 && x >= 0 && x < 8;
 			y += stepY, x += stepX)
 		{
@@ -407,7 +407,7 @@ struct GameState
 	//@param targetSquare index of the destination square. Ignored for promotions
 
 	//Returns a vector of moves that satisfy the basic movement requirements for existing pieces. Does not run obstruction checks
-	std::vector<Move> getAllLegalMoves()
+	/*std::vector<Move> getAllLegalMoves()
 	{
 		std::vector<Move> ret;
 
@@ -504,7 +504,7 @@ struct GameState
 			if (movingPiece.team==targetPiece.team || )
 		}
 
-	}
+	}*/
 
 	/*
 	bool isMoveLegal(Move move)
@@ -577,72 +577,15 @@ struct GameState
 };
 typedef std::array<Piece, 64> board_t;
 
-GameState decodeFEN(const std::string& s)
-{
-	GameState ret;
-	int boardIndex = 0;
-	std::stringstream ss(s);
-	std::string board, turn, castling, enpassant, halfmove, fullmove;
-	ss >> board >> turn >> castling >> enpassant >> ret.halfmoves >> ret.fullmoves;
-
-	ret.whitesTurn = turn[0] == 'w';
-	for (auto it : board)
-	{
-		if (it >= '1' && it <= '8')
-		{
-			for (int j = 0; j <= it - '1'; ++j)
-			{
-				ret.board[boardIndex++] = EMPTY;
-			}
-		}
-		else
-		{
-			switch (it)
-			{
-				//case '/': break;
-			case 'P': ret.board[boardIndex++] = WHITE_PAWN; break;
-			case 'N': ret.board[boardIndex++] = WHITE_KNIGHT; break;
-			case 'B': ret.board[boardIndex++] = WHITE_BISHOP; break;
-			case 'R': ret.board[boardIndex++] = WHITE_ROOK; break;
-			case 'Q': ret.board[boardIndex++] = WHITE_QUEEN; break;
-			case 'K': ret.board[boardIndex++] = WHITE_KING; break;
-			case 'p': ret.board[boardIndex++] = BLACK_PAWN; break;
-			case 'n': ret.board[boardIndex++] = BLACK_KNIGHT; break;
-			case 'b': ret.board[boardIndex++] = BLACK_BISHOP; break;
-			case 'r': ret.board[boardIndex++] = BLACK_ROOK; break;
-			case 'q': ret.board[boardIndex++] = BLACK_QUEEN; break;
-			case 'k': ret.board[boardIndex++] = BLACK_KING; break;
-			default: break;
-			}
-		}
-	}
-	for (auto it : castling)
-	{
-		switch (it)
-		{
-		case 'K': ret.whiteCanKingsideCastle = true; break;
-		case 'Q': ret.whiteCanQueensideCastle = true; break;
-		case 'k': ret.blackCanKingsideCastle = true; break;
-		case 'q': ret.blackCanQueensideCastle = true; break;
-		default: break;
-		}
-	}
-	if (enpassant[0] != '-')
-	{
-		int rank = enpassant[1] - '1'; //0 indexed
-		int file = enpassant[0] - 'a'; //0 indexed;
-		ret.enpassantX = file;
-		ret.enpassantY = 7 - rank;
-	}
-
-	for (auto& it : ret.board) assert(it != UNINITIALIZED);
-	assert(enpassant.size() == 1 || enpassant.size() == 2);
-	return ret;
-}
 int main()
 {
+	/*
 	std::string fenStr;
 	std::getline(std::cin, fenStr);
-	auto s = decodeFEN(fenStr);
+	auto s = GameState::fromFEN(fenStr);*/
+
+	auto s = GameState::fromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"); //starting position
+
+	auto legal = s.getAllLegalMoves();
 	return 0;
 }
