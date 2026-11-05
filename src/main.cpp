@@ -591,6 +591,7 @@ struct PieceTexture
 	Team team;
 	PieceType type;
 	SDL_Texture* tex;
+	float w, h;
 };
 int main()
 {
@@ -624,9 +625,13 @@ int main()
 			t.type = it.first;
 			t.team = Team::WHITE;
 			t.tex = SDL_CreateTextureFromSurface(rend,s1);
+			t.w = s1->w;
+			t.h = s1->h;
 			pieceTextures.emplace_back(t);
 			t.team = Team::BLACK;
 			t.tex = SDL_CreateTextureFromSurface(rend,s2);
+			t.w = s2->w;
+			t.h = s2->h;
 			pieceTextures.emplace_back(t);
 		}
 	}
@@ -663,7 +668,17 @@ int main()
 				{
 					for (auto& it : pieceTextures)
 						if (it.team == piece.team && it.type == piece.type)
-							SDL_RenderTexture(rend, it.tex, nullptr, &rect);
+						{
+							SDL_FRect pieceRect;
+							float scale = side * 0.9 / std::max(it.w, it.h);
+							float scaledW = it.w * scale;
+							float scaledH = it.h * scale;
+							pieceRect.x = rect.x + (side - scaledW) / 2;
+							pieceRect.y = rect.y + (side - scaledH) / 2;
+							pieceRect.w = it.w * scale;
+							pieceRect.h = it.h * scale;
+							SDL_RenderTexture(rend, it.tex, nullptr, &pieceRect);
+						}
 				}
 			}
 		}
