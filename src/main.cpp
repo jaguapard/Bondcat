@@ -9,6 +9,12 @@
 #include "GameState.h"
 #include "Piece.h"
 
+#include <SDL3/SDL.h>
+
+#pragma comment(lib,"SDL3.lib")
+//#pragma comment(lib,"SDL3_image.lib")
+#undef main
+
 /*
 class Piece
 {
