@@ -27,15 +27,24 @@ void BoardView::draw(SDL_Renderer* rend, BoardDrawCtx& ctx)
 	{
 		for (int x = 0; x < 8; ++x)
 		{
-			SDL_Color squareColor = ((x ^ y) % 2) ? this->darkSquaresColor : this->brightSquaresColor;
-			SDL_SetRenderDrawColor(rend, squareColor.r, squareColor.g, squareColor.b, squareColor.a);
 
 			SDL_FRect rect;
 			rect.x = squareW * x;
 			rect.y = squareH * y;
 			rect.w = squareW;
 			rect.h = squareH;
+
+			SDL_Color squareColor = ((x ^ y) % 2) ? this->darkSquaresColor : this->brightSquaresColor;
+			SDL_SetRenderDrawColor(rend, squareColor.r, squareColor.g, squareColor.b, squareColor.a);
 			SDL_RenderFillRect(rend, &rect);
+
+			if (ctx.activeSquare && ctx.activeSquare->x == x && ctx.activeSquare->y == y)
+			{
+				SDL_SetRenderDrawColor(rend, 255, 0, 0, 255);
+				SDL_RenderFillRect(rend, &rect);
+				//SDL_FRect active = rect;
+				//rect.w = 
+			}
 
 			if (ctx.gameState && ctx.textures)
 			{

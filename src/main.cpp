@@ -19,10 +19,6 @@
 #pragma comment(lib,"SDL3_image.lib")
 #undef main
 
-
-
-
-
 int main()
 {
 	SDL_Window* wnd;
@@ -68,21 +64,26 @@ int main()
 		}
 	}
 
-	
+	BoardDrawCtx boardDrawCtx;
+	boardDrawCtx.gameState = &state;
+	boardDrawCtx.textures = &pieceTextures;
 	while (true)
 	{
 		SDL_Event event;
 		while (SDL_PollEvent(&event))
 		{
-
+			if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == 1)
+			{
+				SDL_Point p;
+				p.x = event.motion.x;
+				p.y = event.motion.y;
+				boardDrawCtx.activeSquare = boardView.squareAt(p);
+			}
 		}
 
 		SDL_SetRenderDrawColor(rend, 0, 0, 0, 255);
 		SDL_RenderClear(rend);
 		
-		BoardDrawCtx boardDrawCtx;
-		boardDrawCtx.gameState = &state;
-		boardDrawCtx.textures = &pieceTextures;
 		boardView.draw(rend, boardDrawCtx);
 		SDL_RenderPresent(rend);
 	}
