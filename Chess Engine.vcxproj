@@ -143,11 +143,13 @@
     </Manifest>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\BoardView.cpp" />
     <ClCompile Include="src\GameState.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\Move.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\BoardView.h" />
     <ClInclude Include="src\enums.h" />
     <ClInclude Include="src\GameState.h" />
     <ClInclude Include="src\Move.h" />

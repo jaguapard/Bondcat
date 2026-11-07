@@ -11,6 +11,7 @@
 
 #include "GameState.h"
 #include "Piece.h"
+#include "BoardView.h"
 
 #include <SDL3/SDL.h>
 
@@ -26,6 +27,8 @@ struct PieceTexture
 	SDL_Texture* tex;
 	float w, h;
 };
+
+
 int main()
 {
 	SDL_Window* wnd;
@@ -37,6 +40,8 @@ int main()
 	auto state = GameState::fromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"); //starting position
 	float side = std::min(w, h) / 8.0;
 
+	float minDim = std::min(w, h);
+	BoardView boardView({ 0,0,minDim,minDim }, 8, 8);
 	std::vector<PieceTexture> pieceTextures;
 	{
 		std::pair<PieceType,std::string> paths[] = {
