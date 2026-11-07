@@ -64,10 +64,10 @@ struct GameState
 	std::pair<Piece&, Piece&> getPiecesAtCaslingSquares(Move move);
 
 	//Checks if this move is a legal castling move for this board. Returns false for non-castling moves.
-	bool isLegalCastlingMove(Move move);
+	MoveCheckStatus isLegalCastlingMove(Move move);
 
 	//Checks if a move is legal, considering input Move adversarial (checking the validity of inputs, legality of the move, king checks). There're no requirements for src, dst squares or movement types, but hasMoved flag is trusted as-is (since it's filled out by our engine)
-	bool isLegalMove(Move move);
+	MoveCheckStatus isLegalMove(Move move);
 
 	//Returns true if team's king is checked.
 	//Returns false if there is no king for this team at the board
@@ -78,5 +78,5 @@ struct GameState
 	//If move is legal, returns true and applies the move to the board
 	//Otherwise returns false and does nothing
 	//If skipValidation is true, move legality check is skipped and move is applied uncondiitionally, returning true
-	bool applyMove(Move m, bool skipValidation = false);
+	std::pair<bool, MoveCheckStatus> applyMove(Move m, bool skipValidation = false);
 };
