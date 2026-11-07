@@ -78,6 +78,11 @@ int main()
 				p.x = event.motion.x;
 				p.y = event.motion.y;
 				boardDrawCtx.activeSquare = boardView.squareAt(p);
+				boardDrawCtx.circlesAt.clear();
+				for (auto& move : state.getAllLegalMovesForPieceAt(boardDrawCtx.activeSquare->x, boardDrawCtx.activeSquare->y))
+				{
+					boardDrawCtx.circlesAt.push_back({ move.dstX, move.dstY });
+				} 
 			}
 		}
 

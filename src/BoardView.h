@@ -12,7 +12,8 @@ struct PieceTexture
 
 struct BoardDrawCtx
 {
-	std::optional<SDL_Point> activeSquare, showLegalMovesForPieceAtSquare;
+	std::optional<SDL_Point> activeSquare;
+	std::vector<SDL_Point> circlesAt;
 	const std::vector<PieceTexture>* textures = nullptr;
 	GameState* gameState = nullptr;
 };

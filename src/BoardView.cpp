@@ -23,6 +23,7 @@ void BoardView::draw(SDL_Renderer* rend, BoardDrawCtx& ctx)
 	float squareW = this->renderRect.w / this->divisionsW;
 	float squareH = this->renderRect.h / this->divisionsH;
 	float minDim = std::min(squareW, squareH);
+
 	for (int y = 0; y < 8; ++y)
 	{
 		for (int x = 0; x < 8; ++x)
@@ -46,26 +47,46 @@ void BoardView::draw(SDL_Renderer* rend, BoardDrawCtx& ctx)
 				//rect.w = 
 			}
 
-			if (ctx.gameState && ctx.textures)
+			if (ctx.gameState)
 			{
-				Piece piece = ctx.gameState->getPieceAt(x, y);
-				if (piece.type != PieceType::EMPTY)
+				if (ctx.textures)
 				{
-					for (auto& it : *ctx.textures)
-						if (it.team == piece.team && it.type == piece.type)
-						{
-							SDL_FRect pieceRect;
-							float scale = minDim * 0.9 / std::max(it.w, it.h);
-							float scaledW = it.w * scale;
-							float scaledH = it.h * scale;
-							pieceRect.x = rect.x + (minDim - scaledW) / 2;
-							pieceRect.y = rect.y + (minDim - scaledH) / 2;
-							pieceRect.w = it.w * scale;
-							pieceRect.h = it.h * scale;
-							SDL_RenderTexture(rend, it.tex, nullptr, &pieceRect);
-						}
+					Piece piece = ctx.gameState->getPieceAt(x, y);
+					if (piece.type != PieceType::EMPTY)
+					{
+						for (auto& it : *ctx.textures)
+							if (it.team == piece.team && it.type == piece.type)
+							{
+								SDL_FRect pieceRect;
+								float scale = minDim * 0.9 / std::max(it.w, it.h);
+								float scaledW = it.w * scale;
+								float scaledH = it.h * scale;
+								pieceRect.x = rect.x + (minDim - scaledW) / 2;
+								pieceRect.y = rect.y + (minDim - scaledH) / 2;
+								pieceRect.w = it.w * scale;
+								pieceRect.h = it.h * scale;
+								SDL_RenderTexture(rend, it.tex, nullptr, &pieceRect);
+							}
+					}
+				}
+
+				for (auto& it : ctx.circlesAt)
+				{
+					if (it.x == x && it.y == y)
+					{
+						SDL_SetRenderDrawColor(rend, 127, 127, 127, 255);
+						SDL_FRect small = rect;
+						float smallScale = 0.25;
+						small.w *= smallScale;
+						small.h *= smallScale;
+						small.x += (1 - smallScale)/2 * rect.w;
+						small.y += (1 - smallScale)/2 * rect.h;
+
+						SDL_RenderFillRect(rend, &small);
+					}
 				}
 			}
+
 		}
 	}
 }

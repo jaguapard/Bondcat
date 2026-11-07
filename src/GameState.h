@@ -5,7 +5,7 @@
 #include "Move.h"
 #include <vector>
 #include <optional>
-
+#include <assert.h>
 /*
 struct LegalMoves
 {
@@ -19,13 +19,7 @@ struct LegalMoves
 struct Path
 {
 	int startX, startY, stepX, stepY, stepCount;
-
-	bool isPointOnPath(int x, int y)
-	{
-		int nStepsX = (x - startX) / stepX;
-		int nStepsY = (y - startY) / stepY;
-		return nStepsX >= 0 && nStepsY >= 0 && nStepsX == nStepsY;
-	}
+	bool isPointOnPath(int x, int y);
 };
 struct GameState
 {

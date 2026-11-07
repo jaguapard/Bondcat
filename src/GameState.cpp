@@ -455,3 +455,25 @@ Piece& GameState::getPieceAt(const char* algebraic)
 	rankAndFileToXY(algebraic, x, y);
 	return getPieceAt(x, y);
 }
+
+bool Path::isPointOnPath(int x, int y)
+{
+	assert(stepX != 0 || stepY != 0);
+	int nStepsX, nStepsY;
+	if (stepX == 0)
+	{
+		if (x != startX) return false;
+		nStepsY = (y - startY) / stepY;
+		return nStepsY >= 0 && nStepsY <= stepCount;
+	}
+	if (stepY == 0)
+	{
+		if (y != startY) return false;
+		nStepsX = (x - startX) / stepX;
+		return nStepsX >= 0 && nStepsX <= stepCount;
+	}
+
+	nStepsX = (x - startX) / stepX;
+	nStepsY = (y - startY) / stepY;
+	return nStepsX >= 0 && nStepsY >= 0 && nStepsX == nStepsY && nStepsX <= stepCount && nStepsY <= stepCount;
+}
