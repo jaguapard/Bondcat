@@ -20,13 +20,7 @@
 #undef main
 
 
-struct PieceTexture
-{
-	Team team;
-	PieceType type;
-	SDL_Texture* tex;
-	float w, h;
-};
+
 
 
 int main()
@@ -85,41 +79,11 @@ int main()
 
 		SDL_SetRenderDrawColor(rend, 0, 0, 0, 255);
 		SDL_RenderClear(rend);
-		for (int y = 0; y < 8; ++y)
-		{
-			for (int x = 0; x < 8; ++x)
-			{
-				std::array<Uint8, 3> dark = { 118,150,86 };
-				std::array<Uint8, 3> bright = { 238,238,210  };
-				auto c = ((x ^ y) % 2) ? dark : bright;
-				SDL_SetRenderDrawColor(rend, c[0], c[1], c[2], 255);
-
-				SDL_FRect rect;
-				rect.x = side * x;
-				rect.y = side * y;
-				rect.w = side;
-				rect.h = side;
-				SDL_RenderFillRect(rend, &rect);
-
-				Piece piece = state.getPieceAt(x, y);
-				if (piece.type != PieceType::EMPTY)
-				{
-					for (auto& it : pieceTextures)
-						if (it.team == piece.team && it.type == piece.type)
-						{
-							SDL_FRect pieceRect;
-							float scale = side * 0.9 / std::max(it.w, it.h);
-							float scaledW = it.w * scale;
-							float scaledH = it.h * scale;
-							pieceRect.x = rect.x + (side - scaledW) / 2;
-							pieceRect.y = rect.y + (side - scaledH) / 2;
-							pieceRect.w = it.w * scale;
-							pieceRect.h = it.h * scale;
-							SDL_RenderTexture(rend, it.tex, nullptr, &pieceRect);
-						}
-				}
-			}
-		}
+		
+		BoardDrawCtx boardDrawCtx;
+		boardDrawCtx.gameState = &state;
+		boardDrawCtx.textures = &pieceTextures;
+		boardView.draw(rend, boardDrawCtx);
 		SDL_RenderPresent(rend);
 	}
 
