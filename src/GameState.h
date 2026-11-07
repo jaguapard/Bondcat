@@ -14,30 +14,69 @@ struct LegalMoves
 	//std::array<bool, 4> castlings;
 	//std::array<PromotionMove, 8> promotions;
 };
+
+struct Path
+{
+	int startX, startY, stepX, stepY, stepCount;
+
+	bool isPointOnPath(int x, int y)
+	{
+		int nStepsX = (x - startX) / stepX;
+		int nStepsY = (y - startY) / stepY;
+		return nStepsX >= 0 && nStepsY >= 0 && nStepsX == nStepsY;
+	}
+};
 struct GameState
 {
 	std::array<Piece, 64> board;
-	std::array<bool, 4> allowedCastlings;
+	bool blackCanQueensideCastle = false, blackCanKingsideCastle = false;
+	bool whiteCanQueensideCastle = false, whiteCanKingsideCastle = false;
 	bool whitesTurn;
-	int halfmoves, fullmoves, enpassant;
+	int halfmoves, fullmoves, enpassantX = -1, enpassantY = -1;
 
 	LegalMoves getAllLegalMoves();
+
 	Piece& getPieceAt(int x, int y);
+	//const Piece& getPieceAt(int x, int y) const;
+	Piece& getPieceAt(const char* algebraic);
+	//const Piece& getPieceAt(const char* algebraic) const;
+
 	static GameState fromFEN(const std::string& fenStr);
 
-	//Attempts to move from srcX,srcY using discrette steps of size stepX,stepY until encountering allied piece or capturable enemy piece.
-	//If maxSteps is > 0, stops the movement after making maxSteps steps
-	//Returns the result as pair of X and Y positions, or nullopt if not a single step can be made.
-	//Move must contain in-bounds src and dst coordinates. Does not check the legality of moves, only pathing
-	std::optional<std::pair<int, int>> getFurthestReachableSquare(const SimpleMove& move, int stepX, int stepY, int maxSteps = -1);//, bool ignoreDst = true);
+	//Converts algebraic notation of a square to it's XY coordinated (i.e "a8" -> (0,0), "h1" -> (7,7))
+	void rankAndFileToXY(const char* rankAndFile, int& retX, int& retY) const;
 
-	//Returns the count of steps made if the target square can be reached from starting square by using at most (stepX,stepY) discrette steps.
-	//Or -1 if that's impossible.
-	//Returns 0 when starting == target
-	int countStepsToPathTo(const SimpleMove& move, int stepX, int stepY, int maxSteps) const;
+	//Returns path reachable by using discrette steps of (sizeX,sizeY)
+	//If path is obstructed by an allied piece, the path ends on a square right before it
+	//If path is obstructed by enemy piece, path ends on is it's square
+	//If path is not obstructed at all, path ends on last location inside board's bounds.
+	//Undefined behavior for out of bounds starting location.
+	//If no steps can be made, stepCount is 0 and steps data is garbage.
+	//Data at steps[stepCount] and after it is garbage
+	//Path contains at most 7 points (unobstructed sliding piece movement from the corner, not counting the piece itself)
+	Path getPath(int startX, int startY, int stepX, int stepY);
 
-	//Returns true if destination can be reached from source square by using (stepX,stepY)-sized discrette steps.
-	//Returns false for empty pieces, out-of-bounds positions and if source == destination.
-	//If this function returned true, that means that target square is either empty, or first enemy piece on the way
-	bool pieceCanPathTo(const SimpleMove& move, int stepX, int stepY);
+	//returns true if the square (x,y) is attacked by enemies of the input team 
+	//(i.e. true for white means that black pieces attack this square), or false otherwise
+	//TODO: implement this
+	bool squareIsAttackedFor(int x, int y, Team team);
+
+	//Returns pair of references to pieces at locations hardcoded based on type of the move supplied.
+	//For castling moves, first element of the returned pair is the reference to starting king square
+	//Second - target rook square
+	//Undefined behavior for non-castling inputs
+	//Note that it returns only the references to pieces at target squares, they are not guaranteed to be occupied, or be kings or rooks, castling legality has to be checked separately.
+	std::pair<Piece&, Piece&> getPiecesAtCaslingSquares(Move move);
+
+	//Checks if this move is a legal castling move for this board. Returns false for non-castling moves.
+	bool isLegalCastlingMove(Move move);
+
+	//Checks if a move is legal, considering input Move adversarial (checking the validity of inputs, legality of the move, king checks). There're no requirements for src, dst squares or movement types, but hasMoved flag is trusted as-is (since it's filled out by our engine)
+	bool isLegalMove(Move move);
+
+	//Returns true if team's king is checked.
+	//Returns false if there is no king for this team at the board
+	//Throws an exception if team is NONE
+	bool isTeamsKingChecked(Team team);
+
 };

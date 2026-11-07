@@ -11,11 +11,11 @@ enum Team
 enum class PieceType
 {
 	PAWN,
+	KNIGHT,
+	BISHOP,
 	ROOK,
 	QUEEN,
 	KING,
-	BISHOP,
-	KNIGHT,
 	EMPTY,
 	UNINITIALIZED,
 	COUNT,
