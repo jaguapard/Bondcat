@@ -6,6 +6,7 @@
 #include <vector>
 #include <optional>
 
+/*
 struct LegalMoves
 {
 	std::vector<SimpleMove> simple;
@@ -13,7 +14,7 @@ struct LegalMoves
 	std::vector<PromotionMove> promotions;
 	//std::array<bool, 4> castlings;
 	//std::array<PromotionMove, 8> promotions;
-};
+};*/
 
 struct Path
 {
@@ -34,7 +35,8 @@ struct GameState
 	bool whitesTurn;
 	int halfmoves, fullmoves, enpassantX = -1, enpassantY = -1;
 
-	LegalMoves getAllLegalMoves();
+	std::vector<Move> getAllLegalMoves();
+	std::vector<Move> getAllLegalMovesForPieceAt(int x, int y);
 
 	Piece& getPieceAt(int x, int y);
 	//const Piece& getPieceAt(int x, int y) const;
@@ -58,7 +60,6 @@ struct GameState
 
 	//returns true if the square (x,y) is attacked by enemies of the input team 
 	//(i.e. true for white means that black pieces attack this square), or false otherwise
-	//TODO: implement this
 	bool squareIsAttackedFor(int x, int y, Team team);
 
 	//Returns pair of references to pieces at locations hardcoded based on type of the move supplied.

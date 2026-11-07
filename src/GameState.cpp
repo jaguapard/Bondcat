@@ -2,6 +2,54 @@
 #include <sstream>
 #include <assert.h>
 
+std::vector<Move> GameState::getAllLegalMoves()
+{
+	std::vector<Move> ret;
+
+	for (int y = 0; y < 8; ++y)
+	{
+		for (int x = 0; x < 8; ++x)
+		{
+			auto moves = getAllLegalMovesForPieceAt(x, y);
+			for (auto& it : moves) ret.push_back(it);
+		}
+	}
+
+	for (auto ct : { MoveType::WHITE_KINGSIDE_CASTLE, MoveType::WHITE_QUEENSIDE_CASTLE, MoveType::BLACK_KINGSIDE_CASTLE, MoveType::BLACK_QUEENSIDE_CASTLE })
+	{
+		Move m;
+		m.type = ct;
+		if (isLegalMove(m)) ret.push_back(m);
+	}
+	return ret;
+}
+std::vector<Move> GameState::getAllLegalMovesForPieceAt(int x, int y)
+{
+	std::vector<Move> ret;
+	for (int dstY = 0; dstY < 8; ++dstY)
+	{
+		for (int dstX = 0; dstX < 8; ++dstX)
+		{
+			Move move;
+			move.type = MoveType::MOVE_TO_SQUARE;
+			move.srcX = x;
+			move.srcY = y;
+			move.dstX = dstX;
+			move.dstY = dstY;
+			if (isLegalMove(move)) ret.push_back(move);
+			if (getPieceAt(x, y).type == PieceType::PAWN)
+			{
+				for (auto t : { MoveType::MOVE_AND_PROMOTE_TO_KNIGHT, MoveType::MOVE_AND_PROMOTE_TO_BISHOP, MoveType::MOVE_AND_PROMOTE_TO_ROOK, MoveType::MOVE_AND_PROMOTE_TO_QUEEN })
+				{
+					move.type = t;
+					if (isLegalMove(move)) ret.push_back(move);
+				}
+			}
+		}
+	}
+	return ret;
+}
+/*
 LegalMoves GameState::getAllLegalMoves()
 {
 	LegalMoves ret;
@@ -74,7 +122,7 @@ LegalMoves GameState::getAllLegalMoves()
 
 	return ret;
 }
-
+*/
 Piece& GameState::getPieceAt(int x, int y)
 {
 	return board[y * 8 + x];
@@ -340,18 +388,16 @@ GameState GameState::fromFEN(const std::string& s)
 	{
 		switch (it)
 		{
-		case 'K': ret.allowedCastlings[int(CastlingType::WHITE_KINGSIDE)] = true; break;
-		case 'Q': ret.allowedCastlings[int(CastlingType::WHITE_QUEENSIDE)] = true; break;
-		case 'k': ret.allowedCastlings[int(CastlingType::BLACK_KINGSIDE)] = true; break;
-		case 'q': ret.allowedCastlings[int(CastlingType::BLACK_QUEENSIDE)] = true; break;
+		case 'K': ret.whiteCanKingsideCastle = true; break;
+		case 'Q': ret.whiteCanQueensideCastle = true; break;
+		case 'k': ret.blackCanKingsideCastle = true; break;
+		case 'q': ret.blackCanQueensideCastle = true; break;
 		default: break;
 		}
 	}
 	if (enpassant[0] != '-')
 	{
-		int rank = enpassant[1] - '1'; //0 indexed
-		int file = enpassant[0] - 'a'; //0 indexed;
-		ret.enpassant = (7 - rank) * 8 + file;
+		ret.rankAndFileToXY(enpassant.c_str(), ret.enpassantX, ret.enpassantY); //TODO: check if this works!
 	}
 
 	for (auto& it : ret.board) assert(it.type != PieceType::UNINITIALIZED);
@@ -397,21 +443,15 @@ Path GameState::getPath(int startX, int startY, int stepX, int stepY)
 	}
 }
 
+bool GameState::squareIsAttackedFor(int x, int y, Team team)
+{
+	//TODO: implement this
+	return false;
+}
+
 Piece& GameState::getPieceAt(const char* algebraic)
 {
 	int x, y;
 	rankAndFileToXY(algebraic, x, y);
 	return getPieceAt(x, y);
 }
-
-/*
-const Piece& GameState::getPieceAt(const char* algebraic) const
-{
-	int x, y;
-	rankAndFileToXY(algebraic, x, y);
-	return getPieceAt(x, y);
-}
-const Piece& GameState::getPieceAt(int x, int y) const
-{
-	return board[y * 8 + x];
-}*/
