@@ -2,10 +2,6 @@
 #include <sstream>
 #include <assert.h>
 
-bool xyIsOnPath(int x, int y, PathingInfo path)
-{
-
-}
 LegalMoves GameState::getAllLegalMoves()
 {
 	LegalMoves ret;
@@ -171,8 +167,8 @@ bool GameState::isLegalMove(Move move)
 		if (targetPiece.team == movingPiece.team) return false; //obstructed by ally
 		if (targetPiece.type == PieceType::KING) return false; //can't capture king
 
-		std::array<std::optional<std::pair<int, int>>, 8> pathingLimits;
-		int limitsLen = 0;
+		std::array<Path, 8> paths;
+		int pathCount = 0;
 		//basic movement
 		if (movingPiece.type == PieceType::KNIGHT)
 		{
@@ -182,17 +178,17 @@ bool GameState::isLegalMove(Move move)
 		}
 		if (movingPiece.type == PieceType::ROOK || movingPiece.type == PieceType::QUEEN)
 		{
-			pathingLimits[limitsLen++] = this->getPathingLimits(move, -1, 0); //left
-			pathingLimits[limitsLen++] = this->getPathingLimits(move, 1, 0); //right
-			pathingLimits[limitsLen++] = this->getPathingLimits(move, 0, -1); //up
-			pathingLimits[limitsLen++] = this->getPathingLimits(move, 0, 1); //down
+			paths[pathCount++] = this->getPath(move.srcX, move.srcY, -1, 0); //left
+			paths[pathCount++] = this->getPath(move.srcX, move.srcY, 1, 0); //right
+			paths[pathCount++] = this->getPath(move.srcX, move.srcY, 0, -1); //up
+			paths[pathCount++] = this->getPath(move.srcX, move.srcY, 0, 1); //down
 		}
 		if (movingPiece.type == PieceType::BISHOP || movingPiece.type == PieceType::QUEEN)
 		{
-			pathingLimits[limitsLen++] = this->getPathingLimits(move, -1, -1); //left-up diagonal
-			pathingLimits[limitsLen++] = this->getPathingLimits(move, 1, -1); //right-up
-			pathingLimits[limitsLen++] = this->getPathingLimits(move, -1, 1); //left-down
-			pathingLimits[limitsLen++] = this->getPathingLimits(move, 1, 1); //right-down
+			paths[pathCount++] = this->getPath(move.srcX, move.srcY, -1, -1); //left-up diagonal
+			paths[pathCount++] = this->getPath(move.srcX, move.srcY, 1, -1); //right-up
+			paths[pathCount++] = this->getPath(move.srcX, move.srcY, -1, 1); //left-down
+			paths[pathCount++] = this->getPath(move.srcX, move.srcY, 1, 1); //right-down
 		}
 
 		if (movingPiece.type == PieceType::PAWN)
@@ -236,7 +232,7 @@ bool GameState::isLegalMove(Move move)
 				return true;
 			}
 
-			pathingLimits[limitsLen++] = this->getPathingLimits(move, 0, normStep);
+			paths[pathCount++] = this->getPath(move.srcX, move.srcY, 0, normStep);
 		}
 
 		if (movingPiece.type == PieceType::KING)
@@ -245,16 +241,14 @@ bool GameState::isLegalMove(Move move)
 			return true;
 		}
 
-		if (limitsLen != 0) //scan pathingLimits only if piece is a type that uses that movement (not Knight). Otherwise, it's empty, and if (!pathFound) would return false denials
+		if (pathCount != 0) //scan paths only if piece is a type that uses that movement (not Knight). Otherwise, it's empty, and if (!pathFound) would return false denials
 		{
 			assert(movingPiece.type != PieceType::KNIGHT);
 			bool pathFound = false;
-			for (int i = 0; i < limitsLen; ++i)
+			for (int i = 0; i < pathCount; ++i)
 			{
-				if (pathingLimits[i] && pathingLimits[i].value() == targetPair)
-				{
-					pathFound = true; break;
-				}
+				pathFound = paths[i].isPointOnPath(move.dstX, move.dstY);
+				if (pathFound) break;
 			}
 			if (!pathFound) return false;
 		}
@@ -300,46 +294,6 @@ bool GameState::isTeamsKingChecked(Team team)
 
 	return squareIsAttackedFor(kingX, kingY, team);
 }
-
-bool GameState::pieceCanPathTo(const SimpleMove& move, int stepX, int stepY)
-{
-	if (move.dstX < 0 || move.dstX >= 8 || move.srcX < 0 || move.srcX >= 8 || move.dstY < 0 || move.dstY >= 8 || move.srcX < 0 || move.srcX >= 8) return false;
-	if (move.dstX == move.srcX && move.dstY == move.srcY) return false;
-
-	Piece& target = getPieceAt(move.dstX, move.dstY);
-	Piece& moving = getPieceAt(move.srcX, move.srcY);
-	if (moving.type == PieceType::EMPTY) return false;
-	if (target.team == moving.team && target.type != PieceType::EMPTY) return false;
-
-	int x = move.srcX + stepX;
-	int y = move.srcY + stepY;
-	for (int i = 0; 
-		x >= 0 && x < 8 && y >= 0 && y < 8; 
-		++i, x += stepX, y += stepY)
-	{
-		Piece& t = getPieceAt(x, y);
-		if (t.type != PieceType::EMPTY)
-		{
-			return (t.team != moving.team) && (x == move.dstX && y == move.dstY);
-		}
-		else if (x == move.dstX && y == move.dstY) return true;
-	}
-	return false;
-}
-
-/*
-int GameState::countStepsToPathTo(const SimpleMove& move, int stepX, int stepY, int maxSteps) const
-{
-	int x = move.srcX;
-	int y = move.srcY;
-	for (int i = 0; i <= maxSteps; ++i, x += stepX, y += stepY)
-	{
-		if 
-		Piece& currTarget = getPieceAt()
-		if (x == move.dstX && y == move.dstY) return i;
-	}
-	return -1;
-}*/
 
 GameState GameState::fromFEN(const std::string& s)
 {
