@@ -1,12 +1,15 @@
 #pragma once
 #include "enums.h"
 
-struct SimpleMove
+enum class MoveType
 {
-	int srcX, srcY, dstX, dstY;
-};
-
-struct PromotionMove : SimpleMove
-{
-	PieceType promotionTo;
+	MOVE_TO_SQUARE, //simple move to square and capture an enemy piece located there
+	MOVE_AND_PROMOTE_TO_BISHOP,
+	MOVE_AND_PROMOTE_TO_KNIGHT,
+	MOVE_AND_PROMOTE_TO_ROOK,
+	MOVE_AND_PROMOTE_TO_QUEEN,
+	WHITE_KINGSIDE_CASTLE,
+	BLACK_KINGSIDE_CASTLE,
+	WHITE_QUEENSIDE_CASTLE,
+	BLACK_QUEENSIDE_CASTLE,
 };
