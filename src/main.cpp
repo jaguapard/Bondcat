@@ -77,12 +77,29 @@ int main()
 				SDL_Point p;
 				p.x = event.motion.x;
 				p.y = event.motion.y;
-				boardDrawCtx.activeSquare = boardView.squareAt(p);
-				boardDrawCtx.circlesAt.clear();
-				for (auto& move : state.getAllLegalMovesForPieceAt(boardDrawCtx.activeSquare->x, boardDrawCtx.activeSquare->y))
+				auto clickedAtSquare = boardView.squareAt(p);
+				if (!boardDrawCtx.activeSquare)
 				{
-					boardDrawCtx.circlesAt.push_back({ move.dstX, move.dstY });
-				} 
+					boardDrawCtx.activeSquare = clickedAtSquare;
+					boardDrawCtx.circlesAt.clear();
+					for (auto& move : state.getAllLegalMovesForPieceAt(boardDrawCtx.activeSquare->x, boardDrawCtx.activeSquare->y))
+					{
+						boardDrawCtx.circlesAt.push_back({ move.dstX, move.dstY });
+					}
+				}
+				else
+				{
+					Move m;
+					m.type = MoveType::MOVE_TO_SQUARE;
+					m.srcX = boardDrawCtx.activeSquare->x;
+					m.srcY = boardDrawCtx.activeSquare->y;
+					m.dstX = clickedAtSquare.x;
+					m.dstY = clickedAtSquare.y;
+					state.applyMove(m, false);
+
+					boardDrawCtx.activeSquare = std::nullopt;
+					boardDrawCtx.circlesAt.clear();
+				}
 			}
 		}
 

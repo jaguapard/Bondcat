@@ -187,6 +187,10 @@ bool GameState::isLegalMove(Move move)
 		return isLegalCastlingMove(move);
 	}
 
+	if (move.dstX == 3 && move.dstY == 1)
+	{
+		int a = 0;
+	}
 	//Non-castling, i.e. move or move+promote
 	if (move.srcX < 0 || move.srcX >= 8 ||
 		move.srcY < 0 || move.srcY >= 8 ||
@@ -306,21 +310,10 @@ bool GameState::isLegalMove(Move move)
 
 	if (!isLegalWithUncheckedKing) return false;
 
-	//For movements and promotions, copy the game state, alter it with the attempted move and see if that leaves/puts moving side's king in check
-	auto cpy = *this;
-	auto& dstPiece = cpy.getPieceAt(move.dstX, move.dstY);
-	if (promotionTarget)
-	{
-		dstPiece.type = *promotionTarget;
-		dstPiece.team = movingPiece.team;
-	}
-	else dstPiece = movingPiece;
-	dstPiece.hasMoved = true;
-	cpy.getPieceAt(move.srcX, move.srcY).type = PieceType::EMPTY;
-
-	if (cpy.whitesTurn && cpy.isTeamsKingChecked(Team::WHITE)) return false;
-	if (!cpy.whitesTurn && cpy.isTeamsKingChecked(Team::BLACK)) return false;
-
+	auto copy = *this;
+	copy.applyMove(move, true);
+	//NOTE: should use CURRENT game state's turn, not advanced one's!
+	if (copy.isTeamsKingChecked(whitesTurn ? Team::WHITE : Team::BLACK)) return false; //move leaves or puts our king in check
 	return true;
 }
 
@@ -341,6 +334,28 @@ bool GameState::isTeamsKingChecked(Team team)
 	}
 
 	return squareIsAttackedFor(kingX, kingY, team);
+}
+
+bool GameState::applyMove(Move move, bool skipValidation)
+{
+	if (!skipValidation && !isLegalMove(move)) return false;
+	this->halfmoves++;
+	if (this->halfmoves % 2 == 0) this->fullmoves++;
+	this->whitesTurn ^= 1;
+
+	Piece& movingPiece = getPieceAt(move.srcX, move.srcY);
+	Piece& dstPiece = getPieceAt(move.dstX, move.dstY);
+	auto promotionTarget = move.getPromotionTarget();
+	if (promotionTarget)
+	{
+		dstPiece.type = *promotionTarget;
+		dstPiece.team = movingPiece.team;
+	}
+	else dstPiece = movingPiece;
+
+	dstPiece.hasMoved = true;
+	movingPiece.type = PieceType::EMPTY;
+	return true;
 }
 
 GameState GameState::fromFEN(const std::string& s)

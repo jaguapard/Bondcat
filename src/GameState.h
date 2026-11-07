@@ -74,4 +74,9 @@ struct GameState
 	//Throws an exception if team is NONE
 	bool isTeamsKingChecked(Team team);
 
+	//Attempts to apply the move to the current game state.
+	//If move is legal, returns true and applies the move to the board
+	//Otherwise returns false and does nothing
+	//If skipValidation is true, move legality check is skipped and move is applied uncondiitionally, returning true
+	bool applyMove(Move m, bool skipValidation = false);
 };
