@@ -144,10 +144,12 @@ int main(int argc, char** argv)
 	SDL_CreateWindowAndRenderer("Chess engine", w, h, 0, &wnd, &rend);
 	SDL_SetRenderVSync(rend, 1);
 
-	auto state = GameState::newGame();
+	//auto state = GameState::newGame();
 	//auto state = GameState::fromFEN("rnbqkbnr/pppp3p/4p3/5pp1/5P2/5NPB/PPPPP2P/RNBQK2R w KQkq - 0 5"); //castling test
 	//auto state = GameState::fromFEN("4k3/2p3P1/p2pb3/5p2/1P2p3/B1N3P1/P2P4/R3K2R w KQkq - 0 27");
 	//auto state = GameState::fromFEN("8/2p5/pk1p2R1/Q7/1P6/B1N1P1P1/R7/4K3 b KQkq - 2 35");
+	//auto state = GameState::fromFEN("1nbk2nr/prppqppp/8/1p1N4/3PP2P/P4P2/1P1Q2P1/2KR1BNR b kq - 4 14");
+	auto state = GameState::fromFEN("1k4n1/6PP/4R3/1p6/1P6/8/P1K5/8 b kq - 0 56");
 	
 	float minDim = std::min(w, h);
 	BoardView boardView({ 0,0,minDim,minDim }, 8, 8);
@@ -186,12 +188,14 @@ int main(int argc, char** argv)
 	BoardDrawCtx boardDrawCtx;
 	boardDrawCtx.gameState = &state;
 	boardDrawCtx.textures = &pieceTextures;
+	SearchParams params;
+	params.maxDepth = 3;
 	while (true)
 	{
 		SDL_Event event;
 		while (SDL_PollEvent(&event))
 		{
-			if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == 1)
+			if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == 1 && state.whitesTurn)
 			{
 				SDL_Point p;
 				p.x = event.motion.x;
@@ -256,6 +260,14 @@ int main(int argc, char** argv)
 		
 		boardView.draw(rend, boardDrawCtx);
 		SDL_RenderPresent(rend);
+
+		if (!state.whitesTurn)
+		{
+			SearchReturn search = state.findBestMove(params, 1);
+			state.tryApplyMove(search.bestMove);
+			state.updateStatus();
+			std::cout << "Eval: " << search.evaluation << "\n";
+		}
 	}
 
 	//auto legal = state.getAllLegalMoves();

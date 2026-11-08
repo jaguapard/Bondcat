@@ -6,6 +6,7 @@
 #include <vector>
 #include <optional>
 #include <assert.h>
+#include <chrono>
 /*
 struct LegalMoves
 {
@@ -21,6 +22,19 @@ struct Path
 	int startX, startY, stepX, stepY, stepCount;
 	bool isPointOnPath(int x, int y);
 };
+
+struct SearchParams
+{
+	int maxDepth = 5; //in plies
+	//uint64_t timeDeadline = SDL_GetTicksNS();
+};
+
+struct SearchReturn
+{
+	Move bestMove;
+	float evaluation;
+	std::optional<int> mateIn;
+};
 struct GameState
 {
 	std::array<Piece, 64> board;
@@ -31,6 +45,7 @@ struct GameState
 	GameStatus status;
 	bool statusUpToDate = false;
 
+	SearchReturn findBestMove(const SearchParams& params, int currDepth);
 	static GameState newGame();
 
 	void updateStatus();

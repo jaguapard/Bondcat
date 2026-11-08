@@ -3,6 +3,52 @@
 #include <assert.h>
 #include <unordered_map>
 
+SearchReturn GameState::findBestMove(const SearchParams& params, int currDepth)
+{
+	//if (currDepth >= params.maxDepth) //TODO: check if depth is off by one (i think it is)
+	auto moves = getAllLegalMoves();
+	SearchReturn ret;
+	if (whitesTurn) ret.evaluation = INFINITY;
+	else ret.evaluation = -INFINITY;
+
+	bool first = true;
+	for (auto& move : moves)
+	{
+		GameState copy = *this;
+		copy.tryApplyMove(move, true);
+		copy.updateStatus();
+
+		float eval;
+		
+		if (currDepth < params.maxDepth) eval = copy.findBestMove(params, currDepth + 1).evaluation;
+		else
+		{
+			float whiteScore = 0, blackScore = 0;
+			for (auto& it : copy.board)
+			{
+				if (it.type == PieceType::EMPTY) continue;
+				float& score = (it.team == Team::WHITE) ? whiteScore : blackScore;
+				if (it.type == PieceType::PAWN) score += 1;
+				if (it.type == PieceType::KNIGHT) score += 3;
+				if (it.type == PieceType::BISHOP) score += 3.1;
+				if (it.type == PieceType::ROOK) score += 5;
+				if (it.type == PieceType::QUEEN) score += 9;
+			}
+			eval = blackScore - whiteScore;
+		}
+
+		//TODO: if checkmate/stalemate return corresponding score without going deeper
+		
+		if (first || (copy.whitesTurn && eval > ret.evaluation) || (!copy.whitesTurn && eval < ret.evaluation))
+		{
+			ret.evaluation = eval;
+			ret.bestMove = move;
+			first = false;
+		}
+	}
+	return ret;
+}
+
 GameState GameState::newGame()
 {
 	return fromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
@@ -453,6 +499,19 @@ GameState GameState::fromFEN(const std::string& s)
 			case 'q': ret.board[boardIndex].team = Team::BLACK; ret.board[boardIndex++].type = PieceType::QUEEN; break;
 			case 'k': ret.board[boardIndex].team = Team::BLACK; ret.board[boardIndex++].type = PieceType::KING; break;
 			default: break;
+			}
+		}
+	}
+
+	for (int y = 0; y < 8; ++y)
+	{
+		for (int x = 0; x < 8; ++x)
+		{
+			Piece& p = ret.getPieceAt(x, y);
+			if (p.type == PieceType::PAWN)
+			{
+				int startingY = p.team == Team::BLACK ? 1 : 6;
+				p.hasMoved = y != startingY;
 			}
 		}
 	}
