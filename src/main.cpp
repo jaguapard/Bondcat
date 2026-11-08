@@ -81,8 +81,9 @@ int main()
 	SDL_SetRenderVSync(rend, 1);
 
 	auto state = GameState::fromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"); //starting position
-	float side = std::min(w, h) / 8.0;
-
+	//auto state = GameState::fromFEN("4k3/2p3P1/p2pb3/5p2/1P2p3/B1N3P1/P2P4/R3K2R w KQkq - 0 27");
+	//auto state = GameState::fromFEN("8/2p5/pk1p2R1/Q7/1P6/B1N1P1P1/R7/4K3 b KQkq - 2 35"); //starting position
+	
 	float minDim = std::min(w, h);
 	BoardView boardView({ 0,0,minDim,minDim }, 8, 8);
 	std::vector<PieceTexture> pieceTextures;
@@ -149,6 +150,11 @@ int main()
 					m.dstX = clickedAtSquare.x;
 					m.dstY = clickedAtSquare.y;
 					
+					bool onLastRank = m.dstY == (state.whitesTurn ? 0 : 7);
+					bool isPawn = state.getPieceAt(m.srcX, m.srcY).type == PieceType::PAWN;
+					if (isPawn && onLastRank) {
+						m.type = MoveType::MOVE_AND_PROMOTE_TO_QUEEN;
+					}
 					auto [moveApplied, status] = state.tryApplyMove(m, false);
 					if (!moveApplied) std::cout << moveCheckStatusToString(status) << "\n";
 					else std::cout << state.toFEN() << "\n";

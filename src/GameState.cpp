@@ -267,6 +267,7 @@ MoveCheckStatus GameState::isLegalMove(Move move)
 		if (movingPiece.type == PieceType::KING)
 		{
 			if (abs(dx) > 1 || abs(dy) > 1) return MoveCheckStatus::KING_TOO_FAR;
+			//TODO: king can't move into other king's squares
 			return MoveCheckStatus::LEGAL;
 		}
 
@@ -531,10 +532,45 @@ Path GameState::getPath(int startX, int startY, int stepX, int stepY)
 bool GameState::squareIsAttackedFor(int x, int y, Team team)
 {
 	//TODO: is this correct?
-	for (int i = 0; i < 64; ++i)
+	if (team == Team::NONE) throw std::runtime_error("Square attack checked for NONE team");
+
+	int enemyPawnForward = team == Team::WHITE ? 1 : -1;
+	for (int y2 = 0; y2 < 8; ++y2)
 	{
-		if (board[i].team == team || board[i].type == PieceType::EMPTY) continue;
-		//if (isLegalMove(m))
+		for (int x2 = 0; x2 < 8; ++x2)
+		{
+			
+			Piece& attacker = getPieceAt(x2, y2);
+			if (attacker.type == PieceType::EMPTY || attacker.team == team) continue;
+
+			int dx = x - x2, dy = y - y2; //direction flipped since perspective is too (x2,y2 is the source of the threat, (x,y) is destination of it)
+			if (attacker.type == PieceType::KNIGHT && ((std::abs(dx) == 1 && std::abs(dy) == 2) || (std::abs(dx) == 2 && std::abs(dy) == 1))) return true;
+			if (attacker.type == PieceType::KING && abs(dx) < 1 && abs(dy) < 1) return true;
+			if (attacker.type == PieceType::PAWN)
+				if (abs(dx) == 1 && dy == enemyPawnForward) return true;
+
+			std::array<Path, 8> slidingPaths;
+			int pathCount = 0;
+
+			if (attacker.type == PieceType::ROOK || attacker.type == PieceType::QUEEN)
+			{
+				slidingPaths[pathCount++] = this->getPath(x2,y2, -1, 0); //left
+				slidingPaths[pathCount++] = this->getPath(x2, y2, 1, 0); //right
+				slidingPaths[pathCount++] = this->getPath(x2, y2, 0, -1); //up
+				slidingPaths[pathCount++] = this->getPath(x2, y2, 0, 1); //down
+			}
+			if (attacker.type == PieceType::BISHOP || attacker.type == PieceType::QUEEN)
+			{
+				slidingPaths[pathCount++] = this->getPath(x2, y2, -1, -1); //left-up diagonal
+				slidingPaths[pathCount++] = this->getPath(x2, y2, 1, -1); //right-up
+				slidingPaths[pathCount++] = this->getPath(x2, y2, -1, 1); //left-down
+				slidingPaths[pathCount++] = this->getPath(x2, y2, 1, 1); //right-down
+			}
+			for (int i = 0; i < pathCount; ++i)
+			{
+				if (slidingPaths[i].isPointOnPath(x, y) && slidingPaths[i].stepCount != 0) return true;
+			}
+		}
 	}
 	return false;
 }
