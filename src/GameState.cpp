@@ -8,6 +8,33 @@ GameState GameState::newGame()
 	return fromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 }
 
+void GameState::updateStatus()
+{
+	this->statusUpToDate = true;
+	//TODO: set game's status flags (draw, victory, etc)
+
+	Team nextTeamToMove = whitesTurn ? Team::WHITE : Team::BLACK;
+	bool kingChecked = isTeamsKingChecked(nextTeamToMove);
+	if (kingChecked)
+	{
+		for (int y = 0; y < 8; ++y)
+		{
+			for (int x = 0; x < 8; ++x)
+			{
+				Piece& p = getPieceAt(x, y);
+				if (p.team != nextTeamToMove || p.type != PieceType::KING) continue;
+				auto legalKingMoves = getAllLegalMovesForPieceAt(x, y);
+				if (legalKingMoves.size() == 0)
+				{
+					this->status = whitesTurn ? GameStatus::BLACK_WON_BY_CHECKMATE : GameStatus::WHITE_WON_BY_CHECKMATE;
+				}
+			}
+		}
+	}
+	else if (getAllLegalMoves().size() == 0) this->status = GameStatus::DRAW_STALEMATE;
+	else this->status = GameStatus::ONGOING;
+}
+
 void GameState::reset()
 {
 	*this = newGame();
@@ -36,6 +63,7 @@ std::vector<Move> GameState::getAllLegalMoves()
 }
 std::vector<Move> GameState::getAllLegalMovesForPieceAt(int x, int y)
 {
+	if (!statusUpToDate) throw std::runtime_error("Status out of date");
 	std::vector<Move> ret;
 	for (int dstY = 0; dstY < 8; ++dstY)
 	{
@@ -383,8 +411,7 @@ std::pair<bool, MoveCheckStatus> GameState::tryApplyMove(Move move, bool skipVal
 	}
 	
 	if (eraseEnpassant) enpassantX = enpassantY = -1;
-
-	//TODO: set game's status flags (draw, victory, etc)
+	statusUpToDate = false;
 	return { true, status };
 }
 
@@ -447,8 +474,7 @@ GameState GameState::fromFEN(const std::string& s)
 
 	for (auto& it : ret.board) assert(it.type != PieceType::UNINITIALIZED);
 	assert(enpassant.size() == 1 || enpassant.size() == 2);
-	ret.status = GameStatus::ONGOING;
-	//TODO: check for checkmates and stalemates?
+	ret.updateStatus();
 	return ret;
 }
 

@@ -21,10 +21,9 @@
 
 #include <string_view>
 
-std::string moveCheckStatusToString(MoveCheckStatus status)
+std::string StringifyEnum(MoveCheckStatus status)
 {
 	using enum MoveCheckStatus;
-
 	switch (status)
 	{
 	case LEGAL: return "Legal move.";
@@ -70,6 +69,26 @@ std::string moveCheckStatusToString(MoveCheckStatus status)
 	}
 
 	return "Unknown move-check status: " + std::to_string(int(status));
+}
+
+std::string StringifyEnum(GameStatus status)
+{
+	using enum GameStatus;
+	switch (status)
+	{
+	case GameStatus::ONGOING: return "Game in-progress.";
+	case GameStatus::WHITE_WON_BY_TIME: return "White wins: black ran out of time.";
+	case GameStatus::BLACK_WON_BY_TIME: return "Black wins: white ran out of time.";
+	case GameStatus::WHITE_WON_BY_CHECKMATE: return "White won by checkmate.";
+	case GameStatus::BLACK_WON_BY_CHECKMATE: return "Black won by checkmate.";
+	case GameStatus::WHITE_WON_ENEMY_RESIGNED: return "White wins: black resigned.";
+	case GameStatus::BLACK_WON_ENEMY_RESIGNED: return "Black wins: white resigned.";
+	case GameStatus::DRAW_ACCEPTED: return "Sides agreed to a draw.";
+	case GameStatus::DRAW_STALEMATE: return "Stalemate.";
+	case GameStatus::DRAW_THREEFOLD_REPETITION: return "Draw by threefold repetition.";
+	case GameStatus::DRAW_FIFTY_MOVE_RULE: return "Draw by 50-move rule.";
+	default: return "Unknown GameStatus: " + std::to_string(int(status));
+	}
 }
 
 void UCI()
@@ -221,11 +240,13 @@ int main(int argc, char** argv)
 					}
 
 					if (!application.first) application = state.tryApplyMove(m, false);
-					if (!application.first) std::cout << moveCheckStatusToString(application.second) << "\n";
+					if (!application.first) std::cout << StringifyEnum(application.second) << "\n";
 					else std::cout << state.toFEN() << "\n";
 
 					boardDrawCtx.activeSquare = std::nullopt;
 					boardDrawCtx.circlesAt.clear();
+					state.updateStatus();
+					if (state.status != GameStatus::ONGOING) std::cout << "GAME OVER:\n" << StringifyEnum(state.status) << "\n";
 				}
 			}
 		}

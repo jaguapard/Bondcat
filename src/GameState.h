@@ -29,8 +29,11 @@ struct GameState
 	bool whitesTurn;
 	int halfmoves, fullmoves, enpassantX = -1, enpassantY = -1;
 	GameStatus status;
+	bool statusUpToDate = false;
 
 	static GameState newGame();
+
+	void updateStatus();
 
 	//Resets the game state to the standard starting position
 	void reset();
