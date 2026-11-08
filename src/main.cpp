@@ -132,6 +132,7 @@ void UCI()
 				int x1, x2, y1, y2;
 				gameState.rankAndFileToXY(src.c_str(), x1, y1);
 				gameState.rankAndFileToXY(dst.c_str(), x2, y2);
+				int dx = x2 - x1, dy = y2 - y1;
 
 				Move move;
 				move.srcX = x1;
@@ -150,7 +151,7 @@ void UCI()
 					if (moveStr[4] == 'b') move.type = MoveType::MOVE_AND_PROMOTE_TO_BISHOP;
 				}
 
-				if (srcPiece.team == dstPiece.team && srcPiece.type == PieceType::KING && dstPiece.type == PieceType::ROOK)
+				if (srcPiece.type == PieceType::KING && abs(dx) > 1)
 				{
 					if (moveStr == "e1g1") move.type = MoveType::WHITE_KINGSIDE_CASTLE;
 					else if (moveStr == "e1c1") move.type = MoveType::WHITE_QUEENSIDE_CASTLE;
