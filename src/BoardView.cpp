@@ -74,7 +74,7 @@ void BoardView::draw(SDL_Renderer* rend, BoardDrawCtx& ctx)
 				{
 					if (it.x == x && it.y == y)
 					{
-						SDL_SetRenderDrawColor(rend, 127, 127, 127, 255);
+						SDL_SetRenderDrawColor(rend, 160, 160, 160, 255);
 						SDL_FRect small = rect;
 						float smallScale = 0.25;
 						small.w *= smallScale;

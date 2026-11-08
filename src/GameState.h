@@ -6,6 +6,7 @@
 #include <vector>
 #include <optional>
 #include <assert.h>
+#include <chrono>
 /*
 struct LegalMoves
 {
@@ -21,6 +22,19 @@ struct Path
 	int startX, startY, stepX, stepY, stepCount;
 	bool isPointOnPath(int x, int y);
 };
+
+struct SearchParams
+{
+	int maxDepth = 5; //in plies
+	//uint64_t timeDeadline = SDL_GetTicksNS();
+};
+
+struct SearchReturn
+{
+	Move bestMove;
+	float evaluation;
+	std::optional<int> mateIn;
+};
 struct GameState
 {
 	std::array<Piece, 64> board;
@@ -28,6 +42,16 @@ struct GameState
 	bool whiteCanQueensideCastle = false, whiteCanKingsideCastle = false;
 	bool whitesTurn;
 	int halfmoves, fullmoves, enpassantX = -1, enpassantY = -1;
+	GameStatus status;
+	bool statusUpToDate = false;
+
+	SearchReturn findBestMove(const SearchParams& params, int currDepth);
+	static GameState newGame();
+
+	void updateStatus();
+
+	//Resets the game state to the standard starting position
+	void reset();
 
 	std::vector<Move> getAllLegalMoves();
 	std::vector<Move> getAllLegalMovesForPieceAt(int x, int y);
@@ -38,6 +62,10 @@ struct GameState
 	//const Piece& getPieceAt(const char* algebraic) const;
 
 	static GameState fromFEN(const std::string& fenStr);
+
+	static std::string xyToAlgebraic(int x, int y);
+
+	std::string toFEN();
 
 	//Converts algebraic notation of a square to it's XY coordinated (i.e "a8" -> (0,0), "h1" -> (7,7))
 	void rankAndFileToXY(const char* rankAndFile, int& retX, int& retY) const;

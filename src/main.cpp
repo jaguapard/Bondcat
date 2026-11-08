@@ -21,10 +21,9 @@
 
 #include <string_view>
 
-std::string moveCheckStatusToString(MoveCheckStatus status)
+std::string StringifyEnum(MoveCheckStatus status)
 {
 	using enum MoveCheckStatus;
-
 	switch (status)
 	{
 	case LEGAL: return "Legal move.";
@@ -72,17 +71,158 @@ std::string moveCheckStatusToString(MoveCheckStatus status)
 	return "Unknown move-check status: " + std::to_string(int(status));
 }
 
-int main()
+std::string StringifyEnum(GameStatus status)
 {
+	using enum GameStatus;
+	switch (status)
+	{
+	case GameStatus::ONGOING: return "Game in-progress.";
+	case GameStatus::WHITE_WON_BY_TIME: return "White wins: black ran out of time.";
+	case GameStatus::BLACK_WON_BY_TIME: return "Black wins: white ran out of time.";
+	case GameStatus::WHITE_WON_BY_CHECKMATE: return "White won by checkmate.";
+	case GameStatus::BLACK_WON_BY_CHECKMATE: return "Black won by checkmate.";
+	case GameStatus::WHITE_WON_ENEMY_RESIGNED: return "White wins: black resigned.";
+	case GameStatus::BLACK_WON_ENEMY_RESIGNED: return "Black wins: white resigned.";
+	case GameStatus::DRAW_ACCEPTED: return "Sides agreed to a draw.";
+	case GameStatus::DRAW_STALEMATE: return "Stalemate.";
+	case GameStatus::DRAW_THREEFOLD_REPETITION: return "Draw by threefold repetition.";
+	case GameStatus::DRAW_FIFTY_MOVE_RULE: return "Draw by 50-move rule.";
+	default: return "Unknown GameStatus: " + std::to_string(int(status));
+	}
+}
+
+void UCI()
+{
+	GameState gameState;
+	std::string idString = "id name Bondfish\nid author jaguapard\nuciok\n";
+	std::cout << idString;
+	while (true)
+	{
+		std::string cmd;
+		std::getline(std::cin, cmd);
+
+		if (cmd == "uci")
+		{
+			std::cout << idString;
+		}
+
+		if (cmd.substr(0, 7) == "isready") std::cout << "readyok\n";
+		if (cmd.substr(0, 10) == "ucinewgame") gameState.reset();
+		if (cmd.substr(0, 8) == "position")
+		{
+			std::stringstream ss;
+			ss.str(cmd.substr(9));
+			std::string acc, tmp;
+			
+			while (ss >> tmp)
+			{
+				if (tmp == "moves") break;
+				acc += tmp + " ";
+			}
+
+			if (acc.substr(0, 8) == "startpos") gameState.reset();
+			else if (acc.substr(0, 3) == "fen") gameState = GameState::fromFEN(acc);
+			
+			std::string moveStr;
+			while (ss >> moveStr)
+			{
+				std::string src = moveStr.substr(0, 2);
+				std::string dst = moveStr.substr(2, 2);
+
+				int x1, x2, y1, y2;
+				gameState.rankAndFileToXY(src.c_str(), x1, y1);
+				gameState.rankAndFileToXY(dst.c_str(), x2, y2);
+
+				Move move;
+				move.srcX = x1;
+				move.srcY = y1;
+				move.dstX = x2;
+				move.dstY = y2;
+				move.type = MoveType::MOVE_TO_SQUARE;
+
+				Piece& srcPiece = gameState.getPieceAt(x1, y1);
+				Piece& dstPiece = gameState.getPieceAt(x2, y2);
+				if (moveStr.length() > 4)
+				{
+					if (moveStr[4] == 'q') move.type = MoveType::MOVE_AND_PROMOTE_TO_QUEEN;
+					if (moveStr[4] == 'n') move.type = MoveType::MOVE_AND_PROMOTE_TO_KNIGHT;
+					if (moveStr[4] == 'r') move.type = MoveType::MOVE_AND_PROMOTE_TO_ROOK;
+					if (moveStr[4] == 'b') move.type = MoveType::MOVE_AND_PROMOTE_TO_BISHOP;
+				}
+
+				if (srcPiece.team == dstPiece.team && srcPiece.type == PieceType::KING && dstPiece.type == PieceType::ROOK)
+				{
+					if (moveStr == "e1g1") move.type = MoveType::WHITE_KINGSIDE_CASTLE;
+					else if (moveStr == "e1c1") move.type = MoveType::WHITE_QUEENSIDE_CASTLE;
+					else if (moveStr == "e8g8") move.type = MoveType::BLACK_KINGSIDE_CASTLE;
+					else if (moveStr == "e8c8") move.type = MoveType::BLACK_QUEENSIDE_CASTLE;
+					else throw std::runtime_error("UCI wrong castling: " + moveStr);
+				}
+
+				auto [applied, status] = gameState.tryApplyMove(move);
+				if (!applied) throw std::runtime_error("UCI illegal move: " + StringifyEnum(status));
+				gameState.updateStatus();
+			}
+		}
+
+		if (cmd.substr(0, 2) == "go")
+		{
+			SearchParams params;
+			params.maxDepth = 3;
+
+			std::string token = "";
+			std::stringstream ss;
+			ss.str(cmd.substr(3));
+			while (ss >> token) if (token == "depth") ss >> params.maxDepth;
+
+			SearchReturn mv = gameState.findBestMove(params, 1);
+
+			std::string bestMoveStr;
+			if (mv.bestMove.type == MoveType::WHITE_KINGSIDE_CASTLE) bestMoveStr = "e1g1";
+			else if (mv.bestMove.type == MoveType::BLACK_KINGSIDE_CASTLE) bestMoveStr= "e8g8";
+			else if (mv.bestMove.type == MoveType::WHITE_QUEENSIDE_CASTLE) bestMoveStr = "e1c1";
+			else if (mv.bestMove.type == MoveType::BLACK_QUEENSIDE_CASTLE) bestMoveStr = "e8c8";
+			else
+			{
+				std::string algebraic = gameState.xyToAlgebraic(mv.bestMove.srcX, mv.bestMove.srcY) + gameState.xyToAlgebraic(mv.bestMove.dstX, mv.bestMove.dstY);
+				if (mv.bestMove.type == MoveType::MOVE_AND_PROMOTE_TO_KNIGHT) algebraic += 'n';
+				else if (mv.bestMove.type == MoveType::MOVE_AND_PROMOTE_TO_ROOK) algebraic += 'r';
+				else if (mv.bestMove.type == MoveType::MOVE_AND_PROMOTE_TO_BISHOP) algebraic += 'b';
+				else if (mv.bestMove.type == MoveType::MOVE_AND_PROMOTE_TO_QUEEN) algebraic += 'q';
+				bestMoveStr = algebraic;
+			}
+			
+			std::cout << "info score cp " << int(mv.evaluation * 100) << "\n";
+			std::cout << "bestmove " << bestMoveStr << "\n";
+		}
+		if (cmd == "quit") return;
+	}
+}
+int main(int argc, char** argv)
+{
+	std::cout << "Select mode: gui or uci: ";
+	std::string line;
+	std::getline(std::cin, line);
+
+	if (line == "uci")
+	{
+		UCI();
+		return 0;
+	}
+
 	SDL_Window* wnd;
 	SDL_Renderer* rend;
 	int w = 1920, h = 1080;
 	SDL_CreateWindowAndRenderer("Chess engine", w, h, 0, &wnd, &rend);
 	SDL_SetRenderVSync(rend, 1);
 
-	auto state = GameState::fromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"); //starting position
-	float side = std::min(w, h) / 8.0;
-
+	//auto state = GameState::newGame();
+	//auto state = GameState::fromFEN("rnbqkbnr/pppp3p/4p3/5pp1/5P2/5NPB/PPPPP2P/RNBQK2R w KQkq - 0 5"); //castling test
+	//auto state = GameState::fromFEN("4k3/2p3P1/p2pb3/5p2/1P2p3/B1N3P1/P2P4/R3K2R w KQkq - 0 27");
+	//auto state = GameState::fromFEN("8/2p5/pk1p2R1/Q7/1P6/B1N1P1P1/R7/4K3 b KQkq - 2 35");
+	//auto state = GameState::fromFEN("1nbk2nr/prppqppp/8/1p1N4/3PP2P/P4P2/1P1Q2P1/2KR1BNR b kq - 4 14");
+	auto state = GameState::fromFEN("1k4n1/6PP/4R3/1p6/1P6/8/P1K5/8 b kq - 0 56");
+	
 	float minDim = std::min(w, h);
 	BoardView boardView({ 0,0,minDim,minDim }, 8, 8);
 	std::vector<PieceTexture> pieceTextures;
@@ -120,12 +260,14 @@ int main()
 	BoardDrawCtx boardDrawCtx;
 	boardDrawCtx.gameState = &state;
 	boardDrawCtx.textures = &pieceTextures;
+	SearchParams params;
+	params.maxDepth = 3;
 	while (true)
 	{
 		SDL_Event event;
 		while (SDL_PollEvent(&event))
 		{
-			if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == 1)
+			if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == 1 && state.whitesTurn)
 			{
 				SDL_Point p;
 				p.x = event.motion.x;
@@ -149,11 +291,38 @@ int main()
 					m.dstX = clickedAtSquare.x;
 					m.dstY = clickedAtSquare.y;
 					
-					auto [moveApplied, status] = state.tryApplyMove(m, false);
-					if (!moveApplied) std::cout << moveCheckStatusToString(status) << "\n";
+					Piece& movingPiece = state.getPieceAt(m.srcX, m.srcY);
+					Piece& targetPiece = state.getPieceAt(m.dstX, m.dstY);
+					bool onLastRank = m.dstY == (state.whitesTurn ? 0 : 7);
+					bool isPawn = movingPiece.type == PieceType::PAWN;
+					if (isPawn && onLastRank) {
+						m.type = MoveType::MOVE_AND_PROMOTE_TO_QUEEN;
+					}
+
+					using enum MoveType;
+					std::pair<bool, MoveCheckStatus> application;
+					if ((movingPiece.type == PieceType::KING || movingPiece.type == PieceType::ROOK) && (movingPiece.team == targetPiece.team))
+					{
+						Move copy = m;
+						std::array<MoveType, 2> castles = { BLACK_KINGSIDE_CASTLE, BLACK_QUEENSIDE_CASTLE };
+						if (movingPiece.team == Team::WHITE) castles = { WHITE_KINGSIDE_CASTLE, WHITE_QUEENSIDE_CASTLE };
+						for (auto ct : castles)
+						{
+							m.type = ct;
+							application = state.tryApplyMove(m, false);
+							if (application.first) break;
+						}
+						m = copy;
+					}
+
+					if (!application.first) application = state.tryApplyMove(m, false);
+					if (!application.first) std::cout << StringifyEnum(application.second) << "\n";
+					else std::cout << state.toFEN() << "\n";
 
 					boardDrawCtx.activeSquare = std::nullopt;
 					boardDrawCtx.circlesAt.clear();
+					state.updateStatus();
+					if (state.status != GameStatus::ONGOING) std::cout << "GAME OVER:\n" << StringifyEnum(state.status) << "\n";
 				}
 			}
 		}
@@ -163,6 +332,14 @@ int main()
 		
 		boardView.draw(rend, boardDrawCtx);
 		SDL_RenderPresent(rend);
+
+		if (!state.whitesTurn)
+		{
+			SearchReturn search = state.findBestMove(params, 1);
+			state.tryApplyMove(search.bestMove);
+			state.updateStatus();
+			std::cout << "Eval: " << search.evaluation << "\n";
+		}
 	}
 
 	//auto legal = state.getAllLegalMoves();
