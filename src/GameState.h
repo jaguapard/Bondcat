@@ -39,6 +39,10 @@ struct GameState
 
 	static GameState fromFEN(const std::string& fenStr);
 
+	static std::string xyToAlgebraic(int x, int y);
+
+	std::string toFEN();
+
 	//Converts algebraic notation of a square to it's XY coordinated (i.e "a8" -> (0,0), "h1" -> (7,7))
 	void rankAndFileToXY(const char* rankAndFile, int& retX, int& retY) const;
 

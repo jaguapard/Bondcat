@@ -1,6 +1,7 @@
 #include "GameState.h"
 #include <sstream>
 #include <assert.h>
+#include <unordered_map>
 
 std::vector<Move> GameState::getAllLegalMoves()
 {
@@ -322,11 +323,12 @@ std::pair<bool, MoveCheckStatus> GameState::tryApplyMove(Move move, bool skipVal
 		if (status != MoveCheckStatus::LEGAL) return { false,status };
 	}
 	this->halfmoves++;
-	if (this->halfmoves % 2 == 0) this->fullmoves++;
 	this->whitesTurn ^= 1;
+	if (this->whitesTurn) this->fullmoves++;
 
 	Piece& movingPiece = getPieceAt(move.srcX, move.srcY);
 	Piece& dstPiece = getPieceAt(move.dstX, move.dstY);
+	if (dstPiece.type != PieceType::EMPTY && dstPiece.team != movingPiece.team) this->halfmoves = 0;
 	auto promotionTarget = move.getPromotionTarget();
 	if (promotionTarget)
 	{
@@ -339,6 +341,7 @@ std::pair<bool, MoveCheckStatus> GameState::tryApplyMove(Move move, bool skipVal
 	bool eraseEnpassant = true;
 	if (movingPiece.type == PieceType::PAWN)
 	{
+		this->halfmoves = 0;
 		int forwardForMovingPawn = move.dstY > move.srcY ? 1 : -1;
 		if (abs(move.dstY - move.srcY) == 2)
 		{
@@ -353,6 +356,8 @@ std::pair<bool, MoveCheckStatus> GameState::tryApplyMove(Move move, bool skipVal
 	}
 	movingPiece.type = PieceType::EMPTY;
 	if (eraseEnpassant) enpassantX = enpassantY = -1;
+
+	//TODO: set game's status flags (draw, victory, etc)
 	return { true, status };
 }
 
@@ -416,6 +421,73 @@ GameState GameState::fromFEN(const std::string& s)
 	for (auto& it : ret.board) assert(it.type != PieceType::UNINITIALIZED);
 	assert(enpassant.size() == 1 || enpassant.size() == 2);
 	return ret;
+}
+
+std::string GameState::xyToAlgebraic(int x, int y)
+{
+	std::string s = "na";
+	s[0] = 'a' + x;
+	s[1] = '8' - y;
+	return s;
+}
+
+std::string GameState::toFEN()
+{
+	//static std::unordered_map<PieceType, char> chr = {}
+	std::stringstream ss;
+	/*
+	int emptySquares = 0;
+	auto dump_empty = [&]() {
+		ss << emptySquares;
+		emptySquares = 0;
+		};
+		*/
+
+	for (int y = 0; y < 8; ++y)
+	{
+		int emptySquares = 0;
+		for (int x = 0; x < 8; ++x)
+		{
+			Piece& piece = getPieceAt(x, y);
+			if (piece.type == PieceType::EMPTY) ++emptySquares;
+			else
+			{
+				if (emptySquares != 0) ss << emptySquares;
+				emptySquares = 0;
+				bool w = piece.team == Team::WHITE;
+				switch (piece.type)
+				{
+				case PieceType::PAWN: ss << (w ? 'P' : 'p'); break;
+				case PieceType::KNIGHT: ss << (w ? 'N' : 'n'); break;
+				case PieceType::BISHOP: ss << (w ? 'B' : 'b'); break;
+				case PieceType::ROOK: ss << (w ? 'R' : 'r'); break;
+				case PieceType::QUEEN: ss << (w ? 'Q' : 'q'); break;
+				case PieceType::KING: ss << (w ? 'K' : 'k'); break;
+				default: break;
+				}
+			}
+		}
+		if (emptySquares != 0) ss << emptySquares;
+		if (y != 7) ss << '/';
+	}
+	
+	ss << ' ' << (whitesTurn ? 'w' : 'b') << ' ';
+
+	if (whiteCanKingsideCastle) ss << 'K';
+	if (whiteCanQueensideCastle) ss << 'Q';
+	if (blackCanKingsideCastle) ss << 'k';
+	if (blackCanQueensideCastle) ss << 'q';
+	if (!blackCanKingsideCastle && !whiteCanKingsideCastle && !blackCanQueensideCastle && !whiteCanQueensideCastle) ss << '-';
+	ss << ' ';
+	
+	if (enpassantX != -1 && enpassantY != -1)
+	{
+		ss << xyToAlgebraic(enpassantX, enpassantY);
+	}
+	else ss << '-';
+
+	ss << ' ' << halfmoves << ' ' << fullmoves;
+	return ss.str();
 }
 
 void GameState::rankAndFileToXY(const char* rankAndFile, int& retX, int& retY) const

@@ -151,6 +151,7 @@ int main()
 					
 					auto [moveApplied, status] = state.tryApplyMove(m, false);
 					if (!moveApplied) std::cout << moveCheckStatusToString(status) << "\n";
+					else std::cout << state.toFEN() << "\n";
 
 					boardDrawCtx.activeSquare = std::nullopt;
 					boardDrawCtx.circlesAt.clear();
