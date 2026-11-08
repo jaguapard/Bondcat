@@ -215,80 +215,52 @@ MoveCheckStatus GameState::isLegalMove(Move move)
 	auto promotionTarget = move.getPromotionTarget();
 	if (promotionTarget && movingPiece.type != PieceType::PAWN) return MoveCheckStatus::PROMOTION_OF_NON_PAWN_PIECE;
 
-	//checks the legality of the move WITHOUT verifying if the kings are checked (thus, a move that leaves allied king checked will pass this for instance). That verification is ran later
+	//checks the legality of the move WITHOUT verifying if the kings are checked (thus, a move that leaves allied king checked will pass this for instance). That verification is ran later.
+	//Due to previous checks passing, we can assume that move is relatively clean here (doesn't try to go out of bounds, correct team, moving not empty square, etc).
+	//But it still can fail due to other things, so a preliminary check is isolated to the lambda.
 	MoveCheckStatus isLegalWithUncheckedKing = [&]() {
 		if (targetPiece.type != PieceType::EMPTY && targetPiece.team == movingPiece.team) return MoveCheckStatus::MOVING_OBSTRUCTED_BY_ALLY; //obstructed by ally
 		if (targetPiece.type == PieceType::KING) return MoveCheckStatus::TRYING_TO_CAPTURE_KING; //can't capture king
 
-		std::array<Path, 8> paths;
+		std::array<Path, 8> slidingPaths; //paths for sliding movements (not king or knight)
 		int pathCount = 0;
 		//basic movement
 		if (movingPiece.type == PieceType::KNIGHT)
 		{
-			//only 8 jump destinations available
-			bool goodJump = (std::abs(dx) == 1 && std::abs(dy) == 2) || (std::abs(dx) == 2 && std::abs(dy) == 1);
-			if (!goodJump) return MoveCheckStatus::MOVING_BAD_KNIGHT_JUMP;
+			return (std::abs(dx) == 1 && std::abs(dy) == 2) || (std::abs(dx) == 2 && std::abs(dy) == 1) ? LEGAL : MOVING_BAD_KNIGHT_JUMP;
 		}
 		if (movingPiece.type == PieceType::ROOK || movingPiece.type == PieceType::QUEEN)
 		{
-			paths[pathCount++] = this->getPath(move.srcX, move.srcY, -1, 0); //left
-			paths[pathCount++] = this->getPath(move.srcX, move.srcY, 1, 0); //right
-			paths[pathCount++] = this->getPath(move.srcX, move.srcY, 0, -1); //up
-			paths[pathCount++] = this->getPath(move.srcX, move.srcY, 0, 1); //down
+			slidingPaths[pathCount++] = this->getPath(move.srcX, move.srcY, -1, 0); //left
+			slidingPaths[pathCount++] = this->getPath(move.srcX, move.srcY, 1, 0); //right
+			slidingPaths[pathCount++] = this->getPath(move.srcX, move.srcY, 0, -1); //up
+			slidingPaths[pathCount++] = this->getPath(move.srcX, move.srcY, 0, 1); //down
 		}
 		if (movingPiece.type == PieceType::BISHOP || movingPiece.type == PieceType::QUEEN)
 		{
-			paths[pathCount++] = this->getPath(move.srcX, move.srcY, -1, -1); //left-up diagonal
-			paths[pathCount++] = this->getPath(move.srcX, move.srcY, 1, -1); //right-up
-			paths[pathCount++] = this->getPath(move.srcX, move.srcY, -1, 1); //left-down
-			paths[pathCount++] = this->getPath(move.srcX, move.srcY, 1, 1); //right-down
+			slidingPaths[pathCount++] = this->getPath(move.srcX, move.srcY, -1, -1); //left-up diagonal
+			slidingPaths[pathCount++] = this->getPath(move.srcX, move.srcY, 1, -1); //right-up
+			slidingPaths[pathCount++] = this->getPath(move.srcX, move.srcY, -1, 1); //left-down
+			slidingPaths[pathCount++] = this->getPath(move.srcX, move.srcY, 1, 1); //right-down
 		}
 
 		if (movingPiece.type == PieceType::PAWN)
 		{
 			auto promotionTarget = move.getPromotionTarget();
-			if (promotionTarget)
-			{
-				//can promote only if on last rank
-				if (movingPiece.team == Team::WHITE && move.dstY != 0) return MoveCheckStatus::PAWN_PROMOTION_ON_NONLAST_RANK;
-				if (movingPiece.team == Team::BLACK && move.dstY != 7) return MoveCheckStatus::PAWN_PROMOTION_ON_NONLAST_RANK;
-			}
-			else
-			{
-				//cannot stay as pawn on last rank, promotion required
-				if (movingPiece.team == Team::WHITE && move.dstY == 0) return MoveCheckStatus::PAWN_PROMOTION_ELIDED;
-				if (movingPiece.team == Team::BLACK && move.dstY == 7) return MoveCheckStatus::PAWN_PROMOTION_ELIDED;
-			}
+			bool onLastRank = move.dstY == (whitesTurn ? 0 : 7);
+			if (promotionTarget && !onLastRank) return MoveCheckStatus::PAWN_PROMOTION_ON_NONLAST_RANK; //can promote only if on last rank
+			if (!promotionTarget && onLastRank) return MoveCheckStatus::PAWN_PROMOTION_ELIDED; //cannot stay as pawn on last rank, promotion required
 
-			int normDy = movingPiece.team == Team::WHITE ? -dy : dy; //dy modified to be positive for respective team's forward direction
-			int normStep = movingPiece.team == Team::WHITE ? -1 : 1; //single steps modified to be positive for respective team's forward direction
-
-			if (normDy < 1) return MoveCheckStatus::PAWN_BACKWARDS_MOVE; //pawns can't stay in place or go backwards
-			if (movingPiece.hasMoved && normDy != 1) return MoveCheckStatus::MOVED_PAWN_STEP_TOO_FAR; //already moved pawns can only move by 1 step forward
-			if (!movingPiece.hasMoved && normDy > 2) return MoveCheckStatus::NOT_MOVED_PAWN_STEP_TOO_FAR; //if pawn hasn't moved, it can't go more than 2 steps forward
-
-
-			if (abs(dx) > 1) return MoveCheckStatus::PAWN_MORE_THAN_ONE_FILE; //pawns can't move more that 1 file to the sides
-			if (dx != 0 && normDy == 2) return MoveCheckStatus::PAWN_DIAGONAL_MOVE_ON_FIRST_2MOVE; //can only move forward 2 steps
-
-			if (enpassantX == move.dstX && enpassantY == move.dstY)
-			{
-				return (abs(dx) == 1 && normDy == 1) ? LEGAL : PAWN_WRONG_ENPASSANT_2;
-			}
-
-			if (targetPiece.type == PieceType::EMPTY)
-			{
-				bool capturingEnpassant = enpassantX == move.dstX && enpassantY == move.dstY;
-				if (capturingEnpassant && abs(dx) != 1 && normDy != 1) return MoveCheckStatus::PAWN_WRONG_ENPASSANT;
-				if (dx != 0) return MoveCheckStatus::PAWN_FILE_MOVE_ON_NON_CAPTURE; //pawns can only move diagonally if capturing
-			}
-			else
-			{
-				if (abs(dx) != 1) return MoveCheckStatus::PAWN_NO_FILE_MOVE_ON_CAPTURE; //can't capture without diagonal move
-				return LEGAL;
-			}
-
-			paths[pathCount++] = this->getPath(move.srcX, move.srcY, 0, normStep);
+			int forward = movingPiece.team == Team::WHITE ? -1 : 1; //direction of forward movement in board's Y for current turn's team
+			bool moveToEnpassantSquare = move.dstX == enpassantX && move.dstY == enpassantY;
+			bool trulyEmpty = !moveToEnpassantSquare && targetPiece.type == PieceType::EMPTY;
+			bool oneStep = dx == 0 && dy == forward && trulyEmpty;
+			bool twoSteps = dx == 0 && dy == forward * 2 && !movingPiece.hasMoved && trulyEmpty;
+			bool capture = abs(dx) == 1 && dy == forward && ((targetPiece.type != PieceType::EMPTY && targetPiece.team != movingPiece.team) || moveToEnpassantSquare);
+			if (capture) return LEGAL;
+			if (!oneStep && !twoSteps && !capture) return PAWN_GENERAL_MOVEMENT_ILLEGAL;
+			//after these checks, path can still be obstructed, so a check for that is still needed
+			slidingPaths[pathCount++] = this->getPath(move.srcX, move.srcY, 0, forward);
 		}
 
 		if (movingPiece.type == PieceType::KING)
@@ -297,13 +269,13 @@ MoveCheckStatus GameState::isLegalMove(Move move)
 			return MoveCheckStatus::LEGAL;
 		}
 
-		if (pathCount != 0) //scan paths only if piece is a type that uses that movement (not Knight). Otherwise, it's empty, and if (!pathFound) would return false denials
+		if (pathCount != 0) //sliding pieces paths can be blocked by other pieces, so scan the valid paths for whether they contain the target square
 		{
 			assert(movingPiece.type != PieceType::KNIGHT);
 			bool pathFound = false;
 			for (int i = 0; i < pathCount; ++i)
 			{
-				pathFound = paths[i].isPointOnPath(move.dstX, move.dstY);
+				pathFound = slidingPaths[i].isPointOnPath(move.dstX, move.dstY);
 				if (pathFound) break;
 			}
 			if (!pathFound) return MOVING_SLIDING_PATHS_EXIST_BUT_NONE_MATCH;
@@ -317,7 +289,7 @@ MoveCheckStatus GameState::isLegalMove(Move move)
 	auto copy = *this;
 	copy.tryApplyMove(move, true);
 	//NOTE: should use CURRENT game state's turn, not advanced one's!
-	if (copy.isTeamsKingChecked(whitesTurn ? Team::WHITE : Team::BLACK)) return MoveCheckStatus::MOVING_TEAMS_KING_IN_CHECK; //move leaves or puts our king in check
+	if (copy.isTeamsKingChecked(whitesTurn ? Team::WHITE : Team::BLACK)) return MoveCheckStatus::MOVING_TEAMS_KING_IN_CHECK; //move leaves or puts moving team's king in check
 	return MoveCheckStatus::LEGAL;
 }
 
@@ -362,9 +334,9 @@ std::pair<bool, MoveCheckStatus> GameState::tryApplyMove(Move move, bool skipVal
 		dstPiece.team = movingPiece.team;
 	}
 	else dstPiece = movingPiece;
-
 	dstPiece.hasMoved = true;
 
+	bool eraseEnpassant = true;
 	if (movingPiece.type == PieceType::PAWN)
 	{
 		int forwardForMovingPawn = move.dstY > move.srcY ? 1 : -1;
@@ -372,6 +344,7 @@ std::pair<bool, MoveCheckStatus> GameState::tryApplyMove(Move move, bool skipVal
 		{
 			enpassantX = move.srcX;
 			enpassantY = move.srcY + forwardForMovingPawn;
+			eraseEnpassant = false;
 		}
 		else if (move.dstX == enpassantX && move.dstY == enpassantY)
 		{
@@ -379,6 +352,7 @@ std::pair<bool, MoveCheckStatus> GameState::tryApplyMove(Move move, bool skipVal
 		}
 	}
 	movingPiece.type = PieceType::EMPTY;
+	if (eraseEnpassant) enpassantX = enpassantY = -1;
 	return { true, status };
 }
 

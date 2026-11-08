@@ -62,6 +62,7 @@ std::string moveCheckStatusToString(MoveCheckStatus status)
 	case PAWN_WRONG_ENPASSANT_2: return "The en passant target square must be reached with a one-square diagonal pawn move.";
 	case PAWN_FILE_MOVE_ON_NON_CAPTURE: return "A pawn cannot move diagonally to an empty square unless capturing en passant.";
 	case PAWN_NO_FILE_MOVE_ON_CAPTURE: return "A pawn must capture diagonally.";
+	case PAWN_GENERAL_MOVEMENT_ILLEGAL: return "Pawn movement fits none of these rules prior to pathing check: one step forward, two steps forward for unmoved, diagonal capture, diagonal en passant capture.";
 
 	case KING_TOO_FAR: return "A king can only move one square in any direction, except when castling.";
 	case MOVING_SLIDING_PATHS_EXIST_BUT_NONE_MATCH: return "Sliding piece path exists but none match (this usually means that chosen square is on the right path, but obstructed).";
