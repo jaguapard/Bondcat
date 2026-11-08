@@ -72,8 +72,53 @@ std::string moveCheckStatusToString(MoveCheckStatus status)
 	return "Unknown move-check status: " + std::to_string(int(status));
 }
 
-int main()
+void UCI()
 {
+	GameState gameState;
+	std::string idString = "id name Bondfish\nid author jaguapard\nuciok\n";
+	std::cout << idString;
+	while (true)
+	{
+		std::string cmd;
+		std::getline(std::cin, cmd);
+
+		if (cmd == "uci")
+		{
+			std::cout << idString;
+		}
+
+		if (cmd.substr(0, 7) == "isready") std::cout << "readyok\n";
+		if (cmd.substr(0, 10) == "ucinewgame") gameState = GameState::fromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+		if (cmd.substr(0, 8) == "position")
+		{
+			std::stringstream ss;
+			std::string posStr, str;
+			while (ss >> str)
+			{
+				if (str == "moves") break;
+				posStr += str + " ";
+			}
+
+			if (posStr.substr(0, 8) == "startpos")
+			{
+				gameState = GameState::fromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+			}
+		}
+		if (cmd == "quit") return;
+	}
+}
+int main(int argc, char** argv)
+{
+	std::cout << "Select mode: gui or uci: ";
+	std::string line;
+	std::getline(std::cin, line);
+
+	if (line == "uci")
+	{
+		UCI();
+		return 0;
+	}
+
 	SDL_Window* wnd;
 	SDL_Renderer* rend;
 	int w = 1920, h = 1080;
