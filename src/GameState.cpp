@@ -364,6 +364,20 @@ std::pair<bool, MoveCheckStatus> GameState::tryApplyMove(Move move, bool skipVal
 	else dstPiece = movingPiece;
 
 	dstPiece.hasMoved = true;
+
+	if (movingPiece.type == PieceType::PAWN)
+	{
+		int forwardForMovingPawn = move.dstY > move.srcY ? 1 : -1;
+		if (abs(move.dstY - move.srcY) == 2)
+		{
+			enpassantX = move.srcX;
+			enpassantY = move.srcY + forwardForMovingPawn;
+		}
+		else if (move.dstX == enpassantX && move.dstY == enpassantY)
+		{
+			getPieceAt(enpassantX, enpassantY - forwardForMovingPawn).type = PieceType::EMPTY;
+		}
+	}
 	movingPiece.type = PieceType::EMPTY;
 	return { true, status };
 }
