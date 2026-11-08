@@ -21,12 +21,23 @@
 
 #include <string_view>
 
-std::string_view moveCheckStatusToString(MoveCheckStatus status)
+std::string moveCheckStatusToString(MoveCheckStatus status)
 {
 	using enum MoveCheckStatus;
 
 	switch (status)
 	{
+	case LEGAL: return "Legal move.";
+	case LEGALITY_CHECK_SKIPPED: return "Legality check skipped.";
+	case SRC_OUT_OF_BOUNDS: return "The source square is outside the chessboard.";
+	case DST_OUT_OF_BOUNDS: return "The destination square is outside the chessboard.";
+	case STATIONARY_MOTION: return "The source and destination squares are the same.";
+	case TURN_TEAM_MISMATCH: return "Attempted to move a piece belonging to the other side.";
+	case MOVING_EMPTY_SQUARE: return "Attempted to move empty square.";
+	case MOVING_OBSTRUCTED_BY_ALLY: return "Destination square is occupied by an allied piece.";
+	case TRYING_TO_CAPTURE_KING: return "A king cannot be captured.";
+
+	case CASTLING_CHECK_ON_NONCASTLING_MOVE: return "Castling validation was requested for a non-castling move.";
 	case CASTLING_RIGHTS_ABSENT: return "The corresponding team has no castling right for this castle.";
 	case CASTLING_NOT_KING: return "The expected king square does not contain a king.";
 	case CASTLING_NOT_ROOK: return "The expected rook square does not contain a rook.";
@@ -57,7 +68,7 @@ std::string_view moveCheckStatusToString(MoveCheckStatus status)
 	case MOVING_TEAMS_KING_IN_CHECK: return "Move puts or leaves moving team's king in check.";
 	}
 
-	return "Unknown move-check status.";
+	return "Unknown move-check status: " + std::to_string(int(status));
 }
 
 int main()

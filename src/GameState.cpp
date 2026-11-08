@@ -194,10 +194,6 @@ MoveCheckStatus GameState::isLegalMove(Move move)
 		return isLegalCastlingMove(move);
 	}
 
-	if (move.dstX == 3 && move.dstY == 1)
-	{
-		int a = 0;
-	}
 	//Non-castling, i.e. move or move+promote
 	if (move.srcX < 0 || move.srcX >= 8 || move.srcY < 0 || move.srcY >= 8) return MoveCheckStatus::SRC_OUT_OF_BOUNDS;
 	if (move.dstX < 0 || move.dstX >= 8 || move.dstY < 0 || move.dstY >= 8) return MoveCheckStatus::DST_OUT_OF_BOUNDS;
