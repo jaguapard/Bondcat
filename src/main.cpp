@@ -81,8 +81,9 @@ int main()
 	SDL_SetRenderVSync(rend, 1);
 
 	auto state = GameState::fromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"); //starting position
+	//auto state = GameState::fromFEN("rnbqkbnr/pppp3p/4p3/5pp1/5P2/5NPB/PPPPP2P/RNBQK2R w KQkq - 0 5"); //castling test
 	//auto state = GameState::fromFEN("4k3/2p3P1/p2pb3/5p2/1P2p3/B1N3P1/P2P4/R3K2R w KQkq - 0 27");
-	//auto state = GameState::fromFEN("8/2p5/pk1p2R1/Q7/1P6/B1N1P1P1/R7/4K3 b KQkq - 2 35"); //starting position
+	//auto state = GameState::fromFEN("8/2p5/pk1p2R1/Q7/1P6/B1N1P1P1/R7/4K3 b KQkq - 2 35");
 	
 	float minDim = std::min(w, h);
 	BoardView boardView({ 0,0,minDim,minDim }, 8, 8);
@@ -150,13 +151,32 @@ int main()
 					m.dstX = clickedAtSquare.x;
 					m.dstY = clickedAtSquare.y;
 					
+					Piece& movingPiece = state.getPieceAt(m.srcX, m.srcY);
+					Piece& targetPiece = state.getPieceAt(m.dstX, m.dstY);
 					bool onLastRank = m.dstY == (state.whitesTurn ? 0 : 7);
-					bool isPawn = state.getPieceAt(m.srcX, m.srcY).type == PieceType::PAWN;
+					bool isPawn = movingPiece.type == PieceType::PAWN;
 					if (isPawn && onLastRank) {
 						m.type = MoveType::MOVE_AND_PROMOTE_TO_QUEEN;
 					}
-					auto [moveApplied, status] = state.tryApplyMove(m, false);
-					if (!moveApplied) std::cout << moveCheckStatusToString(status) << "\n";
+
+					using enum MoveType;
+					std::pair<bool, MoveCheckStatus> application;
+					if ((movingPiece.type == PieceType::KING || movingPiece.type == PieceType::ROOK) && (movingPiece.team == targetPiece.team))
+					{
+						Move copy = m;
+						std::array<MoveType, 2> castles = { BLACK_KINGSIDE_CASTLE, BLACK_QUEENSIDE_CASTLE };
+						if (movingPiece.team == Team::WHITE) castles = { WHITE_KINGSIDE_CASTLE, WHITE_QUEENSIDE_CASTLE };
+						for (auto ct : castles)
+						{
+							m.type = ct;
+							application = state.tryApplyMove(m, false);
+							if (application.first) break;
+						}
+						m = copy;
+					}
+
+					if (!application.first) application = state.tryApplyMove(m, false);
+					if (!application.first) std::cout << moveCheckStatusToString(application.second) << "\n";
 					else std::cout << state.toFEN() << "\n";
 
 					boardDrawCtx.activeSquare = std::nullopt;

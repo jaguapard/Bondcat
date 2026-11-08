@@ -327,35 +327,51 @@ std::pair<bool, MoveCheckStatus> GameState::tryApplyMove(Move move, bool skipVal
 	this->whitesTurn ^= 1;
 	if (this->whitesTurn) this->fullmoves++;
 
-	Piece& movingPiece = getPieceAt(move.srcX, move.srcY);
-	Piece& dstPiece = getPieceAt(move.dstX, move.dstY);
-	if (dstPiece.type != PieceType::EMPTY && dstPiece.team != movingPiece.team) this->halfmoves = 0;
-	auto promotionTarget = move.getPromotionTarget();
-	if (promotionTarget)
-	{
-		dstPiece.type = *promotionTarget;
-		dstPiece.team = movingPiece.team;
-	}
-	else dstPiece = movingPiece;
-	dstPiece.hasMoved = true;
-
 	bool eraseEnpassant = true;
-	if (movingPiece.type == PieceType::PAWN)
+	if (move.isCastlingMove())
 	{
-		this->halfmoves = 0;
-		int forwardForMovingPawn = move.dstY > move.srcY ? 1 : -1;
-		if (abs(move.dstY - move.srcY) == 2)
-		{
-			enpassantX = move.srcX;
-			enpassantY = move.srcY + forwardForMovingPawn;
-			eraseEnpassant = false;
-		}
-		else if (move.dstX == enpassantX && move.dstY == enpassantY)
-		{
-			getPieceAt(enpassantX, enpassantY - forwardForMovingPawn).type = PieceType::EMPTY;
-		}
+		auto [king, rook] = getPiecesAtCaslingSquares(move);
+		const char *rookSq = nullptr, *kingSq = nullptr;
+		if (move.type == MoveType::WHITE_KINGSIDE_CASTLE) { rookSq = "f1"; kingSq = "g1"; whiteCanKingsideCastle = false; whiteCanQueensideCastle = false; }
+		if (move.type == MoveType::BLACK_KINGSIDE_CASTLE) { rookSq = "f8"; kingSq = "g8"; blackCanKingsideCastle = false; blackCanQueensideCastle = false; }
+		if (move.type == MoveType::WHITE_QUEENSIDE_CASTLE) { rookSq = "d1"; kingSq = "c1"; whiteCanQueensideCastle = false; whiteCanKingsideCastle = false; }
+		if (move.type == MoveType::BLACK_QUEENSIDE_CASTLE) { rookSq = "d8"; kingSq = "c8"; blackCanQueensideCastle = false; blackCanKingsideCastle = false; }
+		getPieceAt(rookSq) = rook;
+		getPieceAt(kingSq) = king;
+		king.type = rook.type = PieceType::EMPTY;
 	}
-	movingPiece.type = PieceType::EMPTY;
+	else
+	{
+		Piece& movingPiece = getPieceAt(move.srcX, move.srcY);
+		Piece& dstPiece = getPieceAt(move.dstX, move.dstY);
+		if (dstPiece.type != PieceType::EMPTY && dstPiece.team != movingPiece.team) this->halfmoves = 0;
+		auto promotionTarget = move.getPromotionTarget();
+		if (promotionTarget)
+		{
+			dstPiece.type = *promotionTarget;
+			dstPiece.team = movingPiece.team;
+		}
+		else dstPiece = movingPiece;
+		dstPiece.hasMoved = true;
+		
+		if (movingPiece.type == PieceType::PAWN)
+		{
+			this->halfmoves = 0;
+			int forwardForMovingPawn = move.dstY > move.srcY ? 1 : -1;
+			if (abs(move.dstY - move.srcY) == 2)
+			{
+				enpassantX = move.srcX;
+				enpassantY = move.srcY + forwardForMovingPawn;
+				eraseEnpassant = false;
+			}
+			else if (move.dstX == enpassantX && move.dstY == enpassantY)
+			{
+				getPieceAt(enpassantX, enpassantY - forwardForMovingPawn).type = PieceType::EMPTY;
+			}
+		}
+		movingPiece.type = PieceType::EMPTY;
+	}
+	
 	if (eraseEnpassant) enpassantX = enpassantY = -1;
 
 	//TODO: set game's status flags (draw, victory, etc)
