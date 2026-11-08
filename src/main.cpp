@@ -111,17 +111,89 @@ void UCI()
 		if (cmd.substr(0, 8) == "position")
 		{
 			std::stringstream ss;
-			std::string posStr, str;
-			while (ss >> str)
+			ss.str(cmd.substr(9));
+			std::string acc, tmp;
+			
+			while (ss >> tmp)
 			{
-				if (str == "moves") break;
-				posStr += str + " ";
+				if (tmp == "moves") break;
+				acc += tmp + " ";
 			}
 
-			if (posStr.substr(0, 8) == "startpos")
+			if (acc.substr(0, 8) == "startpos") gameState.reset();
+			else if (acc.substr(0, 3) == "fen") gameState = GameState::fromFEN(acc);
+			
+			std::string moveStr;
+			while (ss >> moveStr)
 			{
-				gameState.reset();
+				std::string src = moveStr.substr(0, 2);
+				std::string dst = moveStr.substr(2, 2);
+
+				int x1, x2, y1, y2;
+				gameState.rankAndFileToXY(src.c_str(), x1, y1);
+				gameState.rankAndFileToXY(dst.c_str(), x2, y2);
+
+				Move move;
+				move.srcX = x1;
+				move.srcY = y1;
+				move.dstX = x2;
+				move.dstY = y2;
+				move.type = MoveType::MOVE_TO_SQUARE;
+
+				Piece& srcPiece = gameState.getPieceAt(x1, y1);
+				Piece& dstPiece = gameState.getPieceAt(x2, y2);
+				if (moveStr.length() > 4)
+				{
+					if (moveStr[4] == 'q') move.type = MoveType::MOVE_AND_PROMOTE_TO_QUEEN;
+					if (moveStr[4] == 'n') move.type = MoveType::MOVE_AND_PROMOTE_TO_KNIGHT;
+					if (moveStr[4] == 'r') move.type = MoveType::MOVE_AND_PROMOTE_TO_ROOK;
+					if (moveStr[4] == 'b') move.type = MoveType::MOVE_AND_PROMOTE_TO_BISHOP;
+				}
+
+				if (srcPiece.team == dstPiece.team && srcPiece.type == PieceType::KING && dstPiece.type == PieceType::ROOK)
+				{
+					if (moveStr == "e1g1") move.type = MoveType::WHITE_KINGSIDE_CASTLE;
+					else if (moveStr == "e1c1") move.type = MoveType::WHITE_QUEENSIDE_CASTLE;
+					else if (moveStr == "e8g8") move.type = MoveType::BLACK_KINGSIDE_CASTLE;
+					else if (moveStr == "e8c8") move.type = MoveType::BLACK_QUEENSIDE_CASTLE;
+					else throw std::runtime_error("UCI wrong castling: " + moveStr);
+				}
+
+				auto [applied, status] = gameState.tryApplyMove(move);
+				if (!applied) throw std::runtime_error("UCI illegal move: " + StringifyEnum(status));
+				gameState.updateStatus();
 			}
+		}
+
+		if (cmd.substr(0, 2) == "go")
+		{
+			SearchParams params;
+			params.maxDepth = 3;
+
+			std::string token = "";
+			std::stringstream ss;
+			ss.str(cmd.substr(3));
+			while (ss >> token) if (token == "depth") ss >> params.maxDepth;
+
+			SearchReturn mv = gameState.findBestMove(params, 1);
+
+			std::string bestMoveStr;
+			if (mv.bestMove.type == MoveType::WHITE_KINGSIDE_CASTLE) bestMoveStr = "e1g1";
+			else if (mv.bestMove.type == MoveType::BLACK_KINGSIDE_CASTLE) bestMoveStr= "e8g8";
+			else if (mv.bestMove.type == MoveType::WHITE_QUEENSIDE_CASTLE) bestMoveStr = "e1c1";
+			else if (mv.bestMove.type == MoveType::BLACK_QUEENSIDE_CASTLE) bestMoveStr = "e8c8";
+			else
+			{
+				std::string algebraic = gameState.xyToAlgebraic(mv.bestMove.srcX, mv.bestMove.srcY) + gameState.xyToAlgebraic(mv.bestMove.dstX, mv.bestMove.dstY);
+				if (mv.bestMove.type == MoveType::MOVE_AND_PROMOTE_TO_KNIGHT) algebraic += 'n';
+				else if (mv.bestMove.type == MoveType::MOVE_AND_PROMOTE_TO_ROOK) algebraic += 'r';
+				else if (mv.bestMove.type == MoveType::MOVE_AND_PROMOTE_TO_BISHOP) algebraic += 'b';
+				else if (mv.bestMove.type == MoveType::MOVE_AND_PROMOTE_TO_QUEEN) algebraic += 'q';
+				bestMoveStr = algebraic;
+			}
+			
+			std::cout << "info score cp " << int(mv.evaluation * 100) << "\n";
+			std::cout << "bestmove " << bestMoveStr << "\n";
 		}
 		if (cmd == "quit") return;
 	}
