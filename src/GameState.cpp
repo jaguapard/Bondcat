@@ -319,7 +319,7 @@ MoveCheckStatus GameState::isLegalMove(Move move)
 	if (isLegalWithUncheckedKing != MoveCheckStatus::LEGAL) return isLegalWithUncheckedKing;
 
 	auto copy = *this;
-	copy.applyMove(move, true);
+	copy.tryApplyMove(move, true);
 	//NOTE: should use CURRENT game state's turn, not advanced one's!
 	if (copy.isTeamsKingChecked(whitesTurn ? Team::WHITE : Team::BLACK)) return MoveCheckStatus::MOVING_TEAMS_KING_IN_CHECK; //move leaves or puts our king in check
 	return MoveCheckStatus::LEGAL;
@@ -344,7 +344,7 @@ bool GameState::isTeamsKingChecked(Team team)
 	return squareIsAttackedFor(kingX, kingY, team);
 }
 
-std::pair<bool, MoveCheckStatus> GameState::applyMove(Move move, bool skipValidation)
+std::pair<bool, MoveCheckStatus> GameState::tryApplyMove(Move move, bool skipValidation)
 {
 	using enum MoveCheckStatus;
 	MoveCheckStatus status = LEGALITY_CHECK_SKIPPED;
@@ -474,7 +474,12 @@ Path GameState::getPath(int startX, int startY, int stepX, int stepY)
 
 bool GameState::squareIsAttackedFor(int x, int y, Team team)
 {
-	//TODO: implement this
+	//TODO: is this correct?
+	for (int i = 0; i < 64; ++i)
+	{
+		if (board[i].team == team || board[i].type == PieceType::EMPTY) continue;
+		//if (isLegalMove(m))
+	}
 	return false;
 }
 

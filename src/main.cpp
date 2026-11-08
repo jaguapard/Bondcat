@@ -137,7 +137,7 @@ int main()
 					m.dstX = clickedAtSquare.x;
 					m.dstY = clickedAtSquare.y;
 					
-					auto [moveApplied, status] = state.applyMove(m, false);
+					auto [moveApplied, status] = state.tryApplyMove(m, false);
 					if (!moveApplied) std::cout << moveCheckStatusToString(status) << "\n";
 
 					boardDrawCtx.activeSquare = std::nullopt;

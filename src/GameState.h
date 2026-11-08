@@ -69,14 +69,13 @@ struct GameState
 	//Checks if a move is legal, considering input Move adversarial (checking the validity of inputs, legality of the move, king checks). There're no requirements for src, dst squares or movement types, but hasMoved flag is trusted as-is (since it's filled out by our engine)
 	MoveCheckStatus isLegalMove(Move move);
 
-	//Returns true if team's king is checked.
-	//Returns false if there is no king for this team at the board
+	//Returns true if team's king is checked or false if he's not.
+	//Returns false if there is no king for this team on the board
 	//Throws an exception if team is NONE
 	bool isTeamsKingChecked(Team team);
 
-	//Attempts to apply the move to the current game state.
-	//If move is legal, returns true and applies the move to the board
-	//Otherwise returns false and does nothing
-	//If skipValidation is true, move legality check is skipped and move is applied uncondiitionally, returning true
-	std::pair<bool, MoveCheckStatus> applyMove(Move m, bool skipValidation = false);
+	//@brief Attempts to apply a move to the current game state. If the attempt was successfull, applies the move and advances game state by one ply.
+	//@return First element of the pair is true if move was successfully applied (due to being legal or legality check skipped), or false otherwise.
+	//Second element of the pair returns the corresponding status
+	std::pair<bool, MoveCheckStatus> tryApplyMove(Move m, bool skipValidation = false);
 };
