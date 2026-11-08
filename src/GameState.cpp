@@ -3,6 +3,16 @@
 #include <assert.h>
 #include <unordered_map>
 
+GameState GameState::newGame()
+{
+	return fromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+}
+
+void GameState::reset()
+{
+	*this = newGame();
+}
+
 std::vector<Move> GameState::getAllLegalMoves()
 {
 	std::vector<Move> ret;
@@ -437,6 +447,8 @@ GameState GameState::fromFEN(const std::string& s)
 
 	for (auto& it : ret.board) assert(it.type != PieceType::UNINITIALIZED);
 	assert(enpassant.size() == 1 || enpassant.size() == 2);
+	ret.status = GameStatus::ONGOING;
+	//TODO: check for checkmates and stalemates?
 	return ret;
 }
 

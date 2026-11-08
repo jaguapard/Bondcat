@@ -88,7 +88,7 @@ void UCI()
 		}
 
 		if (cmd.substr(0, 7) == "isready") std::cout << "readyok\n";
-		if (cmd.substr(0, 10) == "ucinewgame") gameState = GameState::fromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+		if (cmd.substr(0, 10) == "ucinewgame") gameState.reset();
 		if (cmd.substr(0, 8) == "position")
 		{
 			std::stringstream ss;
@@ -101,7 +101,7 @@ void UCI()
 
 			if (posStr.substr(0, 8) == "startpos")
 			{
-				gameState = GameState::fromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+				gameState.reset();
 			}
 		}
 		if (cmd == "quit") return;
@@ -125,7 +125,7 @@ int main(int argc, char** argv)
 	SDL_CreateWindowAndRenderer("Chess engine", w, h, 0, &wnd, &rend);
 	SDL_SetRenderVSync(rend, 1);
 
-	auto state = GameState::fromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"); //starting position
+	auto state = GameState::newGame();
 	//auto state = GameState::fromFEN("rnbqkbnr/pppp3p/4p3/5pp1/5P2/5NPB/PPPPP2P/RNBQK2R w KQkq - 0 5"); //castling test
 	//auto state = GameState::fromFEN("4k3/2p3P1/p2pb3/5p2/1P2p3/B1N3P1/P2P4/R3K2R w KQkq - 0 27");
 	//auto state = GameState::fromFEN("8/2p5/pk1p2R1/Q7/1P6/B1N1P1P1/R7/4K3 b KQkq - 2 35");

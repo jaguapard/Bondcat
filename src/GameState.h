@@ -28,6 +28,12 @@ struct GameState
 	bool whiteCanQueensideCastle = false, whiteCanKingsideCastle = false;
 	bool whitesTurn;
 	int halfmoves, fullmoves, enpassantX = -1, enpassantY = -1;
+	GameStatus status;
+
+	static GameState newGame();
+
+	//Resets the game state to the standard starting position
+	void reset();
 
 	std::vector<Move> getAllLegalMoves();
 	std::vector<Move> getAllLegalMovesForPieceAt(int x, int y);
