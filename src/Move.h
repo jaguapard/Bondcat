@@ -29,4 +29,7 @@ struct Move
 	//Returns a promotion target stored or nullopt if there is none. Does not check if it is legal
 	std::optional<PieceType> getPromotionTarget() const;
 	bool isCastlingMove() const;
+
+	std::string toUCI() const;
+	static Move fromUCI(const std::string& uci, bool isCastling);
 };

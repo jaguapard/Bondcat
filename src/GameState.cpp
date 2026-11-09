@@ -415,7 +415,7 @@ MoveCheckStatus GameState::isLegalMove(Move move)
 			if (!promotionTarget && onLastRank) return MoveCheckStatus::PAWN_PROMOTION_ELIDED; //cannot stay as pawn on last rank, promotion required
 
 			int forward = movingPiece.team == Team::WHITE ? -1 : 1; //direction of forward movement in board's Y for current turn's team
-			bool moveToEnpassantSquare = move.to.x == enpassantX && move.to.y == enpassantY;
+			bool moveToEnpassantSquare = enpassant && move.to == *enpassant;
 			bool trulyEmpty = !moveToEnpassantSquare && targetPiece.type == PieceType::EMPTY;
 			bool oneStep = dx == 0 && dy == forward && trulyEmpty;
 			bool twoSteps = dx == 0 && dy == forward * 2 && !movingPiece.hasMoved && trulyEmpty;
@@ -534,9 +534,9 @@ std::pair<bool, MoveCheckStatus> GameState::tryApplyMove(Move move, bool skipVal
 				enpassant = Square(move.from.x, move.from.y + forwardForMovingPawn);
 				eraseEnpassant = false;
 			}
-			else if (move.to == enpassant)
+			else if (enpassant && move.to == *enpassant)
 			{
-				getPieceAt(Square(enpassant.x, enpassant.y - forwardForMovingPawn)).type = PieceType::EMPTY;
+				getPieceAt(Square(enpassant->x, enpassant->y - forwardForMovingPawn)).type = PieceType::EMPTY;
 			}
 		}
 		movingPiece.type = PieceType::EMPTY;
@@ -556,7 +556,7 @@ GameState GameState::fromFEN(const std::string& s)
 	ss >> board >> turn >> castling >> enpassant >> ret.halfmoves >> ret.fullmoves;
 
 	ret.whitesTurn = turn[0] == 'w';
-	ret.enpassantX = ret.enpassantY = -1;
+	ret.enpassant = std::nullopt;
 	for (auto it : board)
 	{
 		if (it >= '1' && it <= '8')
@@ -589,16 +589,13 @@ GameState GameState::fromFEN(const std::string& s)
 		}
 	}
 
-	for (int y = 0; y < 8; ++y)
+	for (auto sq : Square::all_inBounds())
 	{
-		for (int x = 0; x < 8; ++x)
+		Piece& p = ret.getPieceAt(sq);
+		if (p.type == PieceType::PAWN)
 		{
-			Piece& p = ret.getPieceAt(x, y);
-			if (p.type == PieceType::PAWN)
-			{
-				int startingY = p.team == Team::BLACK ? 1 : 6;
-				p.hasMoved = y != startingY;
-			}
+			int startingY = p.team == Team::BLACK ? 1 : 6;
+			p.hasMoved = sq.y != startingY;
 		}
 	}
 	for (auto it : castling)
@@ -614,7 +611,7 @@ GameState GameState::fromFEN(const std::string& s)
 	}
 	if (enpassant[0] != '-')
 	{
-		ret.rankAndFileToXY(enpassant.c_str(), ret.enpassantX, ret.enpassantY); //TODO: check if this works!
+		ret.enpassant = Square(enpassant);
 	}
 
 	for (auto& it : ret.board) assert(it.type != PieceType::UNINITIALIZED);
@@ -648,7 +645,7 @@ std::string GameState::toFEN()
 		int emptySquares = 0;
 		for (int x = 0; x < 8; ++x)
 		{
-			Piece& piece = getPieceAt(x, y);
+			Piece& piece = getPieceAt(Square(x, y));
 			if (piece.type == PieceType::EMPTY) ++emptySquares;
 			else
 			{
@@ -680,10 +677,7 @@ std::string GameState::toFEN()
 	if (!blackCanKingsideCastle && !whiteCanKingsideCastle && !blackCanQueensideCastle && !whiteCanQueensideCastle) ss << '-';
 	ss << ' ';
 	
-	if (enpassantX != -1 && enpassantY != -1)
-	{
-		ss << xyToAlgebraic(enpassantX, enpassantY);
-	}
+	if (this->enpassant) ss << this->enpassant->toAlgebraic();
 	else ss << '-';
 
 	ss << ' ' << halfmoves << ' ' << fullmoves;
@@ -764,13 +758,6 @@ bool GameState::squareIsAttackedFor(int x, int y, Team team)
 		}
 	}
 	return false;
-}
-
-Piece& GameState::getPieceAt(const char* algebraic)
-{
-	int x, y;
-	rankAndFileToXY(algebraic, x, y);
-	return getPieceAt(x, y);
 }
 
 bool Path::isPointOnPath(int x, int y)

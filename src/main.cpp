@@ -115,7 +115,7 @@ void UCI()
 			std::stringstream ss;
 			ss.str(cmd.substr(9));
 			std::string acc, tmp;
-			
+
 			while (ss >> tmp)
 			{
 				if (tmp == "moves") break;
@@ -124,27 +124,16 @@ void UCI()
 
 			if (acc.substr(0, 8) == "startpos") gameState.reset();
 			else if (acc.substr(0, 3) == "fen") gameState = GameState::fromFEN(acc);
-			
+
 			std::string moveStr;
 			while (ss >> moveStr)
 			{
 				std::string src = moveStr.substr(0, 2);
 				std::string dst = moveStr.substr(2, 2);
 
-				int x1, x2, y1, y2;
-				gameState.rankAndFileToXY(src.c_str(), x1, y1);
-				gameState.rankAndFileToXY(dst.c_str(), x2, y2);
-				int dx = x2 - x1, dy = y2 - y1;
-
-				Move move;
-				move.srcX = x1;
-				move.srcY = y1;
-				move.dstX = x2;
-				move.dstY = y2;
-				move.type = MoveType::MOVE_TO_SQUARE;
-
-				Piece& srcPiece = gameState.getPieceAt(x1, y1);
-				Piece& dstPiece = gameState.getPieceAt(x2, y2);
+				Move move(Square(src), Square(dst), MoveType::MOVE_TO_SQUARE);
+				Piece& srcPiece = gameState.getPieceAt(move.from);
+				Piece& dstPiece = gameState.getPieceAt(move.to);
 				if (moveStr.length() > 4)
 				{
 					if (moveStr[4] == 'q') move.type = MoveType::MOVE_AND_PROMOTE_TO_QUEEN;
@@ -153,17 +142,17 @@ void UCI()
 					if (moveStr[4] == 'b') move.type = MoveType::MOVE_AND_PROMOTE_TO_BISHOP;
 				}
 
-				if (srcPiece.type == PieceType::KING && abs(dx) > 1)
+				if (srcPiece.type == PieceType::KING && abs(move.from.x - move.to.x) > 1)
 				{
 					if (moveStr == "e1g1") move.type = MoveType::WHITE_KINGSIDE_CASTLE;
 					else if (moveStr == "e1c1") move.type = MoveType::WHITE_QUEENSIDE_CASTLE;
 					else if (moveStr == "e8g8") move.type = MoveType::BLACK_KINGSIDE_CASTLE;
 					else if (moveStr == "e8c8") move.type = MoveType::BLACK_QUEENSIDE_CASTLE;
-					else throw std::runtime_error("UCI wrong castling: " + moveStr);
+					else throw BondcatException("UCI wrong castling: " + moveStr);
 				}
 
 				auto [applied, status] = gameState.tryApplyMove(move);
-				if (!applied) throw std::runtime_error("UCI illegal move: " + StringifyEnum(status));
+				if (!applied) throw BondcatException("UCI illegal move: " + StringifyEnum(status));
 				gameState.updateStatus();
 			}
 		}
@@ -183,19 +172,19 @@ void UCI()
 
 			std::string bestMoveStr;
 			if (mv.bestMove.type == MoveType::WHITE_KINGSIDE_CASTLE) bestMoveStr = "e1g1";
-			else if (mv.bestMove.type == MoveType::BLACK_KINGSIDE_CASTLE) bestMoveStr= "e8g8";
+			else if (mv.bestMove.type == MoveType::BLACK_KINGSIDE_CASTLE) bestMoveStr = "e8g8";
 			else if (mv.bestMove.type == MoveType::WHITE_QUEENSIDE_CASTLE) bestMoveStr = "e1c1";
 			else if (mv.bestMove.type == MoveType::BLACK_QUEENSIDE_CASTLE) bestMoveStr = "e8c8";
 			else
 			{
-				std::string algebraic = gameState.xyToAlgebraic(mv.bestMove.srcX, mv.bestMove.srcY) + gameState.xyToAlgebraic(mv.bestMove.dstX, mv.bestMove.dstY);
+				std::string algebraic = gameState.xyToAlgebraic(mv.bestMove.from.x, mv.bestMove.from.y) + gameState.xyToAlgebraic(mv.bestMove.to.x, mv.bestMove.to.y);
 				if (mv.bestMove.type == MoveType::MOVE_AND_PROMOTE_TO_KNIGHT) algebraic += 'n';
 				else if (mv.bestMove.type == MoveType::MOVE_AND_PROMOTE_TO_ROOK) algebraic += 'r';
 				else if (mv.bestMove.type == MoveType::MOVE_AND_PROMOTE_TO_BISHOP) algebraic += 'b';
 				else if (mv.bestMove.type == MoveType::MOVE_AND_PROMOTE_TO_QUEEN) algebraic += 'q';
 				bestMoveStr = algebraic;
 			}
-			
+
 			int evalScore = mv.evaluation * 100;
 			int reportedScore = gameState.whitesTurn ? evalScore : -evalScore;
 			std::cout << "info score cp " << reportedScore << " nodes " << nodesSearched << "\n";
@@ -288,21 +277,21 @@ int main(int argc, char** argv)
 						boardDrawCtx.circlesAt.clear();
 						for (auto& move : state.getAllLegalMovesForPieceAt(boardDrawCtx.activeSquare->x, boardDrawCtx.activeSquare->y))
 						{
-							boardDrawCtx.circlesAt.push_back({ move.dstX, move.dstY });
+							boardDrawCtx.circlesAt.push_back({ move.to.x, move.to.y });
 						}
 					}
 					else
 					{
 						Move m;
 						m.type = MoveType::MOVE_TO_SQUARE;
-						m.srcX = boardDrawCtx.activeSquare->x;
-						m.srcY = boardDrawCtx.activeSquare->y;
-						m.dstX = clickedAtSquare.x;
-						m.dstY = clickedAtSquare.y;
+						m.from.x = boardDrawCtx.activeSquare->x;
+						m.from.y = boardDrawCtx.activeSquare->y;
+						m.to.x = clickedAtSquare.x;
+						m.to.y = clickedAtSquare.y;
 
-						Piece& movingPiece = state.getPieceAt(m.srcX, m.srcY);
-						Piece& targetPiece = state.getPieceAt(m.dstX, m.dstY);
-						bool onLastRank = m.dstY == (state.whitesTurn ? 0 : 7);
+						Piece& movingPiece = state.getPieceAt(m.from.x, m.from.y);
+						Piece& targetPiece = state.getPieceAt(m.to.x, m.to.y);
+						bool onLastRank = m.to.y == (state.whitesTurn ? 0 : 7);
 						bool isPawn = movingPiece.type == PieceType::PAWN;
 						if (isPawn && onLastRank) {
 							m.type = MoveType::MOVE_AND_PROMOTE_TO_QUEEN;

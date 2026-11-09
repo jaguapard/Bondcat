@@ -42,7 +42,7 @@ struct GameState
 	bool whiteCanQueensideCastle = false, whiteCanKingsideCastle = false;
 	bool whitesTurn;
 	int halfmoves, fullmoves;
-	Square enpassant;
+	std::optional<Square> enpassant;
 	GameStatus status; //TODO: turn this into optional
 	bool statusUpToDate = false;
 
