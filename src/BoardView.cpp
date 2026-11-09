@@ -9,12 +9,12 @@ BoardView::BoardView(SDL_FRect boardRenderRect, int divisionsW, int divisionsH)
 	this->brightSquaresColor = { 238,238,210,255 };
 }
 
-SDL_Point BoardView::squareAt(SDL_Point p)
+Square BoardView::squareAt(SDL_Point p)
 {
 	float relX = p.x - renderRect.x;
 	float relY = p.y - renderRect.y;
-	int sx = relX / (renderRect.w / divisionsW);
-	int sy = relY / (renderRect.h / divisionsH);
+	int8_t sx = relX / (renderRect.w / divisionsW);
+	int8_t sy = relY / (renderRect.h / divisionsH);
 	return { sx,sy };
 }
 

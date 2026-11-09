@@ -35,15 +35,10 @@ bool Square::operator==(const Square& other) const
 	return x == other.x && y == other.y;
 }
 
-constexpr std::array<Square, 64> Square::all_inBounds()
+std::string Square::toAlgebraic() const
 {
-	return []() {
-		std::array<Square, 64> ret;
-		for (int y = 0; y < 8; ++y)
-			for (int x = 0; x < 8; ++x)
-				ret[y * 8 + x] = Square(x, y);
-		return ret;
-		}();
+	std::string ret = "xx";
+	ret[0] = 'a' + x;
+	ret[1] = '8' - y;
+	return ret;
 }
-
-

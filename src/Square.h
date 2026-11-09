@@ -21,6 +21,15 @@ public:
 	std::string toAlgebraic() const;
 
 	//returns all squares that are in-bounds of conventional 8x8 chessboard (mostly used to make iterating easier)
-	static constexpr std::array<Square, 64> all_inBounds();
+	static constexpr std::array<Square, 64> all_inBounds()
+	{
+		return []() {
+			std::array<Square, 64> ret;
+			for (int y = 0; y < 8; ++y)
+				for (int x = 0; x < 8; ++x)
+					ret[y * 8 + x] = Square(x, y);
+			return ret;
+			}();
+	}
 private:
 };

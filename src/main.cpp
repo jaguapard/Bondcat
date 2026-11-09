@@ -170,25 +170,10 @@ void UCI()
 			uint64_t nodesSearched = 0;
 			SearchReturn mv = gameState.findBestMove(params, 1, &nodesSearched);
 
-			std::string bestMoveStr;
-			if (mv.bestMove.type == MoveType::WHITE_KINGSIDE_CASTLE) bestMoveStr = "e1g1";
-			else if (mv.bestMove.type == MoveType::BLACK_KINGSIDE_CASTLE) bestMoveStr = "e8g8";
-			else if (mv.bestMove.type == MoveType::WHITE_QUEENSIDE_CASTLE) bestMoveStr = "e1c1";
-			else if (mv.bestMove.type == MoveType::BLACK_QUEENSIDE_CASTLE) bestMoveStr = "e8c8";
-			else
-			{
-				std::string algebraic = gameState.xyToAlgebraic(mv.bestMove.from.x, mv.bestMove.from.y) + gameState.xyToAlgebraic(mv.bestMove.to.x, mv.bestMove.to.y);
-				if (mv.bestMove.type == MoveType::MOVE_AND_PROMOTE_TO_KNIGHT) algebraic += 'n';
-				else if (mv.bestMove.type == MoveType::MOVE_AND_PROMOTE_TO_ROOK) algebraic += 'r';
-				else if (mv.bestMove.type == MoveType::MOVE_AND_PROMOTE_TO_BISHOP) algebraic += 'b';
-				else if (mv.bestMove.type == MoveType::MOVE_AND_PROMOTE_TO_QUEEN) algebraic += 'q';
-				bestMoveStr = algebraic;
-			}
-
 			int evalScore = mv.evaluation * 100;
 			int reportedScore = gameState.whitesTurn ? evalScore : -evalScore;
 			std::cout << "info score cp " << reportedScore << " nodes " << nodesSearched << "\n";
-			std::cout << "bestmove " << bestMoveStr << "\n";
+			std::cout << "bestmove " << mv.bestMove.toUCI() << "\n";
 		}
 		if (cmd == "quit") return;
 	}
@@ -275,7 +260,7 @@ int main(int argc, char** argv)
 					{
 						boardDrawCtx.activeSquare = clickedAtSquare;
 						boardDrawCtx.circlesAt.clear();
-						for (auto& move : state.getAllLegalMovesForPieceAt(boardDrawCtx.activeSquare->x, boardDrawCtx.activeSquare->y))
+						for (auto& move : state.getAllLegalMovesForPieceAt(*boardDrawCtx.activeSquare))
 						{
 							boardDrawCtx.circlesAt.push_back({ move.to.x, move.to.y });
 						}
@@ -289,8 +274,8 @@ int main(int argc, char** argv)
 						m.to.x = clickedAtSquare.x;
 						m.to.y = clickedAtSquare.y;
 
-						Piece& movingPiece = state.getPieceAt(m.from.x, m.from.y);
-						Piece& targetPiece = state.getPieceAt(m.to.x, m.to.y);
+						Piece& movingPiece = state.getPieceAt(m.from);
+						Piece& targetPiece = state.getPieceAt(m.to);
 						bool onLastRank = m.to.y == (state.whitesTurn ? 0 : 7);
 						bool isPawn = movingPiece.type == PieceType::PAWN;
 						if (isPawn && onLastRank) {

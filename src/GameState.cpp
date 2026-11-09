@@ -694,7 +694,7 @@ Path GameState::getPath(int startX, int startY, int stepX, int stepY)
 	ret.stepY = stepY;
 
 	int x = startX, y = startY;
-	Piece& movingPiece = getPieceAt(x, y);
+	Piece& movingPiece = getPieceAt(Square(x,y));
 	assert(movingPiece.type != PieceType::EMPTY);
 	while (true)
 	{
@@ -702,7 +702,7 @@ Path GameState::getPath(int startX, int startY, int stepX, int stepY)
 		y += stepY;
 		if (x < 0 || x > 7 || y < 0 || y > 7) return ret;
 
-		Piece& targetPiece = getPieceAt(x, y);
+		Piece& targetPiece = getPieceAt(Square(x, y));
 		bool shouldReturn = false;
 		if (targetPiece.type != PieceType::EMPTY)
 		{
@@ -724,8 +724,7 @@ bool GameState::squareIsAttackedFor(int x, int y, Team team)
 	{
 		for (int x2 = 0; x2 < 8; ++x2)
 		{
-			
-			Piece& attacker = getPieceAt(x2, y2);
+			Piece& attacker = getPieceAt(Square(x2,y2));
 			if (attacker.type == PieceType::EMPTY || attacker.team == team) continue;
 
 			int dx = x - x2, dy = y - y2; //direction flipped since perspective is too (x2,y2 is the source of the threat, (x,y) is destination of it)

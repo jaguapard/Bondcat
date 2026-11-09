@@ -46,6 +46,10 @@ std::string Move::toUCI() const
 	case MoveType::MOVE_AND_PROMOTE_TO_BISHOP: ret.push_back('b'); break;
 	case MoveType::MOVE_AND_PROMOTE_TO_ROOK: ret.push_back('r'); break;
 	case MoveType::MOVE_AND_PROMOTE_TO_QUEEN: ret.push_back('q'); break;
+	case MoveType::WHITE_KINGSIDE_CASTLE: return "e1g1";
+	case MoveType::BLACK_KINGSIDE_CASTLE: return "e8g8";
+	case MoveType::WHITE_QUEENSIDE_CASTLE: return "e1c1";
+	case MoveType::BLACK_QUEENSIDE_CASTLE: return "e8c8";
 	default: break;
 	}
 	return ret;
