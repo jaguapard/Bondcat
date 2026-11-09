@@ -30,6 +30,9 @@
     <ClCompile Include="src\Square.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\BondcatException.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Piece.h">
@@ -50,5 +53,10 @@
     <ClInclude Include="src\Square.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\BondcatException.h">
+      <Filter>Header Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

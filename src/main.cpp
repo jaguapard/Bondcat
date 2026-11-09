@@ -20,6 +20,7 @@
 #undef main
 
 #include <string_view>
+#include "BondcatException.h"
 
 std::string StringifyEnum(MoveCheckStatus status)
 {
@@ -205,150 +206,163 @@ void UCI()
 }
 int main(int argc, char** argv)
 {
-	std::cout << "Select mode: gui or uci: ";
-	std::string line;
-	std::getline(std::cin, line);
-
-	if (line == "uci")
+	try
 	{
-		UCI();
-		return 0;
-	}
+		std::cout << "Select mode: gui or uci: ";
+		std::string line;
+		std::getline(std::cin, line);
 
-	SDL_Window* wnd;
-	SDL_Renderer* rend;
-	int w = 1920, h = 1080;
-	SDL_CreateWindowAndRenderer("Chess engine", w, h, 0, &wnd, &rend);
-	SDL_SetRenderVSync(rend, 1);
-
-	auto state = GameState::newGame();
-	//state = GameState::fromFEN("rnbqkbnr/pppp3p/4p3/5pp1/5P2/5NPB/PPPPP2P/RNBQK2R w KQkq - 0 5"); //castling test
-	//state = GameState::fromFEN("4k3/2p3P1/p2pb3/5p2/1P2p3/B1N3P1/P2P4/R3K2R w KQkq - 0 27");
-	//state = GameState::fromFEN("8/2p5/pk1p2R1/Q7/1P6/B1N1P1P1/R7/4K3 b KQkq - 2 35");
-	//state = GameState::fromFEN("1nbk2nr/prppqppp/8/1p1N4/3PP2P/P4P2/1P1Q2P1/2KR1BNR b kq - 4 14");
-	//state = GameState::fromFEN("1k4n1/6PP/4R3/1p6/1P6/8/P1K5/8 b kq - 0 56");
-	//state = GameState::fromFEN("8/8/8/2K2k2/8/8/8/8 w - - 0 1"); //king vs king test
-	
-	float minDim = std::min(w, h);
-	BoardView boardView({ 0,0,minDim,minDim }, 8, 8);
-	std::vector<PieceTexture> pieceTextures;
-	{
-		std::pair<PieceType,std::string> paths[] = {
-			{ PieceType::PAWN, "pawn" },
-			{ PieceType::ROOK, "rook" },
-			{ PieceType::KING, "king" },
-			{ PieceType::QUEEN, "queen" },
-			{ PieceType::BISHOP, "bishop" },
-			{ PieceType::KNIGHT, "knight" },
-		};
-		for (auto& it : paths)
+		if (line == "uci")
 		{
-			std::string pth_w = "textures/white_" + it.second + ".png";
-			std::string pth_b = "textures/black_" + it.second + ".png";
-			SDL_Surface* s1 = IMG_Load(pth_w.c_str());
-			SDL_Surface* s2 = IMG_Load(pth_b.c_str());
-			
-			PieceTexture t;
-			t.type = it.first;
-			t.team = Team::WHITE;
-			t.tex = SDL_CreateTextureFromSurface(rend,s1);
-			t.w = s1->w;
-			t.h = s1->h;
-			pieceTextures.emplace_back(t);
-			t.team = Team::BLACK;
-			t.tex = SDL_CreateTextureFromSurface(rend,s2);
-			t.w = s2->w;
-			t.h = s2->h;
-			pieceTextures.emplace_back(t);
+			UCI();
+			return 0;
 		}
-	}
 
-	BoardDrawCtx boardDrawCtx;
-	boardDrawCtx.gameState = &state;
-	boardDrawCtx.textures = &pieceTextures;
-	SearchParams params;
-	params.maxDepth = 3;
-	while (true)
-	{
-		SDL_Event event;
-		while (SDL_PollEvent(&event))
+		SDL_Window* wnd;
+		SDL_Renderer* rend;
+		int w = 1920, h = 1080;
+		SDL_CreateWindowAndRenderer("Chess engine", w, h, 0, &wnd, &rend);
+		SDL_SetRenderVSync(rend, 1);
+
+		auto state = GameState::newGame();
+		//state = GameState::fromFEN("rnbqkbnr/pppp3p/4p3/5pp1/5P2/5NPB/PPPPP2P/RNBQK2R w KQkq - 0 5"); //castling test
+		//state = GameState::fromFEN("4k3/2p3P1/p2pb3/5p2/1P2p3/B1N3P1/P2P4/R3K2R w KQkq - 0 27");
+		//state = GameState::fromFEN("8/2p5/pk1p2R1/Q7/1P6/B1N1P1P1/R7/4K3 b KQkq - 2 35");
+		//state = GameState::fromFEN("1nbk2nr/prppqppp/8/1p1N4/3PP2P/P4P2/1P1Q2P1/2KR1BNR b kq - 4 14");
+		//state = GameState::fromFEN("1k4n1/6PP/4R3/1p6/1P6/8/P1K5/8 b kq - 0 56");
+		//state = GameState::fromFEN("8/8/8/2K2k2/8/8/8/8 w - - 0 1"); //king vs king test
+
+		float minDim = std::min(w, h);
+		BoardView boardView({ 0,0,minDim,minDim }, 8, 8);
+		std::vector<PieceTexture> pieceTextures;
 		{
-			if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == 1 && state.whitesTurn)
+			std::pair<PieceType, std::string> paths[] = {
+				{ PieceType::PAWN, "pawn" },
+				{ PieceType::ROOK, "rook" },
+				{ PieceType::KING, "king" },
+				{ PieceType::QUEEN, "queen" },
+				{ PieceType::BISHOP, "bishop" },
+				{ PieceType::KNIGHT, "knight" },
+			};
+			for (auto& it : paths)
 			{
-				SDL_Point p;
-				p.x = event.motion.x;
-				p.y = event.motion.y;
-				auto clickedAtSquare = boardView.squareAt(p);
-				if (!boardDrawCtx.activeSquare)
-				{
-					boardDrawCtx.activeSquare = clickedAtSquare;
-					boardDrawCtx.circlesAt.clear();
-					for (auto& move : state.getAllLegalMovesForPieceAt(boardDrawCtx.activeSquare->x, boardDrawCtx.activeSquare->y))
-					{
-						boardDrawCtx.circlesAt.push_back({ move.dstX, move.dstY });
-					}
-				}
-				else
-				{
-					Move m;
-					m.type = MoveType::MOVE_TO_SQUARE;
-					m.srcX = boardDrawCtx.activeSquare->x;
-					m.srcY = boardDrawCtx.activeSquare->y;
-					m.dstX = clickedAtSquare.x;
-					m.dstY = clickedAtSquare.y;
-					
-					Piece& movingPiece = state.getPieceAt(m.srcX, m.srcY);
-					Piece& targetPiece = state.getPieceAt(m.dstX, m.dstY);
-					bool onLastRank = m.dstY == (state.whitesTurn ? 0 : 7);
-					bool isPawn = movingPiece.type == PieceType::PAWN;
-					if (isPawn && onLastRank) {
-						m.type = MoveType::MOVE_AND_PROMOTE_TO_QUEEN;
-					}
+				std::string pth_w = "textures/white_" + it.second + ".png";
+				std::string pth_b = "textures/black_" + it.second + ".png";
+				SDL_Surface* s1 = IMG_Load(pth_w.c_str());
+				SDL_Surface* s2 = IMG_Load(pth_b.c_str());
 
-					using enum MoveType;
-					std::pair<bool, MoveCheckStatus> application;
-					if ((movingPiece.type == PieceType::KING || movingPiece.type == PieceType::ROOK) && (movingPiece.team == targetPiece.team))
-					{
-						Move copy = m;
-						std::array<MoveType, 2> castles = { BLACK_KINGSIDE_CASTLE, BLACK_QUEENSIDE_CASTLE };
-						if (movingPiece.team == Team::WHITE) castles = { WHITE_KINGSIDE_CASTLE, WHITE_QUEENSIDE_CASTLE };
-						for (auto ct : castles)
-						{
-							m.type = ct;
-							application = state.tryApplyMove(m, false);
-							if (application.first) break;
-						}
-						m = copy;
-					}
-
-					if (!application.first) application = state.tryApplyMove(m, false);
-					if (!application.first) std::cout << StringifyEnum(application.second) << "\n";
-					else std::cout << state.toFEN() << "\n";
-
-					boardDrawCtx.activeSquare = std::nullopt;
-					boardDrawCtx.circlesAt.clear();
-					state.updateStatus();
-					if (state.status != GameStatus::ONGOING) std::cout << "GAME OVER: " << StringifyEnum(state.status) << "\n";
-				}
+				PieceTexture t;
+				t.type = it.first;
+				t.team = Team::WHITE;
+				t.tex = SDL_CreateTextureFromSurface(rend, s1);
+				t.w = s1->w;
+				t.h = s1->h;
+				pieceTextures.emplace_back(t);
+				t.team = Team::BLACK;
+				t.tex = SDL_CreateTextureFromSurface(rend, s2);
+				t.w = s2->w;
+				t.h = s2->h;
+				pieceTextures.emplace_back(t);
 			}
 		}
 
-		SDL_SetRenderDrawColor(rend, 0, 0, 0, 255);
-		SDL_RenderClear(rend);
-		
-		boardView.draw(rend, boardDrawCtx);
-		SDL_RenderPresent(rend);
-
-		if (!state.whitesTurn)
+		BoardDrawCtx boardDrawCtx;
+		boardDrawCtx.gameState = &state;
+		boardDrawCtx.textures = &pieceTextures;
+		SearchParams params;
+		params.maxDepth = 3;
+		while (true)
 		{
-			uint64_t nodesSearched = 0;
-			SearchReturn search = state.findBestMove(params, 1, &nodesSearched);
-			state.tryApplyMove(search.bestMove);
-			state.updateStatus();
-			std::cout << "Eval: " << search.evaluation << ", nodes searched: " << nodesSearched << "\n";
-		}
-	}
+			SDL_Event event;
+			while (SDL_PollEvent(&event))
+			{
+				if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == 1 && state.whitesTurn)
+				{
+					SDL_Point p;
+					p.x = event.motion.x;
+					p.y = event.motion.y;
+					auto clickedAtSquare = boardView.squareAt(p);
+					if (!boardDrawCtx.activeSquare)
+					{
+						boardDrawCtx.activeSquare = clickedAtSquare;
+						boardDrawCtx.circlesAt.clear();
+						for (auto& move : state.getAllLegalMovesForPieceAt(boardDrawCtx.activeSquare->x, boardDrawCtx.activeSquare->y))
+						{
+							boardDrawCtx.circlesAt.push_back({ move.dstX, move.dstY });
+						}
+					}
+					else
+					{
+						Move m;
+						m.type = MoveType::MOVE_TO_SQUARE;
+						m.srcX = boardDrawCtx.activeSquare->x;
+						m.srcY = boardDrawCtx.activeSquare->y;
+						m.dstX = clickedAtSquare.x;
+						m.dstY = clickedAtSquare.y;
 
-	//auto legal = state.getAllLegalMoves();
-	return 0;
+						Piece& movingPiece = state.getPieceAt(m.srcX, m.srcY);
+						Piece& targetPiece = state.getPieceAt(m.dstX, m.dstY);
+						bool onLastRank = m.dstY == (state.whitesTurn ? 0 : 7);
+						bool isPawn = movingPiece.type == PieceType::PAWN;
+						if (isPawn && onLastRank) {
+							m.type = MoveType::MOVE_AND_PROMOTE_TO_QUEEN;
+						}
+
+						using enum MoveType;
+						std::pair<bool, MoveCheckStatus> application;
+						if ((movingPiece.type == PieceType::KING || movingPiece.type == PieceType::ROOK) && (movingPiece.team == targetPiece.team))
+						{
+							Move copy = m;
+							std::array<MoveType, 2> castles = { BLACK_KINGSIDE_CASTLE, BLACK_QUEENSIDE_CASTLE };
+							if (movingPiece.team == Team::WHITE) castles = { WHITE_KINGSIDE_CASTLE, WHITE_QUEENSIDE_CASTLE };
+							for (auto ct : castles)
+							{
+								m.type = ct;
+								application = state.tryApplyMove(m, false);
+								if (application.first) break;
+							}
+							m = copy;
+						}
+
+						if (!application.first) application = state.tryApplyMove(m, false);
+						if (!application.first) std::cout << StringifyEnum(application.second) << "\n";
+						else std::cout << state.toFEN() << "\n";
+
+						boardDrawCtx.activeSquare = std::nullopt;
+						boardDrawCtx.circlesAt.clear();
+						state.updateStatus();
+						if (state.status != GameStatus::ONGOING) std::cout << "GAME OVER: " << StringifyEnum(state.status) << "\n";
+					}
+				}
+			}
+
+			SDL_SetRenderDrawColor(rend, 0, 0, 0, 255);
+			SDL_RenderClear(rend);
+
+			boardView.draw(rend, boardDrawCtx);
+			SDL_RenderPresent(rend);
+
+			if (!state.whitesTurn)
+			{
+				uint64_t nodesSearched = 0;
+				SearchReturn search = state.findBestMove(params, 1, &nodesSearched);
+				state.tryApplyMove(search.bestMove);
+				state.updateStatus();
+				std::cout << "Eval: " << search.evaluation << ", nodes searched: " << nodesSearched << "\n";
+			}
+		}
+
+		//auto legal = state.getAllLegalMoves();
+		return 0;
+	}
+	catch (const BondcatException& e)
+	{
+		std::cerr << e.asString() << "\n";
+		return -1;
+	}
+	catch (const std::exception& e)
+	{
+		std::cerr << "std exception: " << e.what() << "\n";
+		return -1;
+	}
 }

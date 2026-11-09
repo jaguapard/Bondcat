@@ -41,8 +41,9 @@ struct GameState
 	bool blackCanQueensideCastle = false, blackCanKingsideCastle = false;
 	bool whiteCanQueensideCastle = false, whiteCanKingsideCastle = false;
 	bool whitesTurn;
-	int halfmoves, fullmoves, enpassantX = -1, enpassantY = -1;
-	GameStatus status;
+	int halfmoves, fullmoves;
+	Square enpassant;
+	GameStatus status; //TODO: turn this into optional
 	bool statusUpToDate = false;
 
 	SearchReturn findBestMove(const SearchParams& params, int currDepth, uint64_t* nodesVisited = nullptr);

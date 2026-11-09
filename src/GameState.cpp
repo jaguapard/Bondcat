@@ -513,8 +513,8 @@ std::pair<bool, MoveCheckStatus> GameState::tryApplyMove(Move move, bool skipVal
 	}
 	else
 	{
-		Piece& movingPiece = getPieceAt(move.srcX, move.srcY);
-		Piece& dstPiece = getPieceAt(move.dstX, move.dstY);
+		Piece& movingPiece = getPieceAt(move.from);
+		Piece& dstPiece = getPieceAt(move.to);
 		if (dstPiece.type != PieceType::EMPTY && dstPiece.team != movingPiece.team) this->halfmoves = 0;
 		auto promotionTarget = move.getPromotionTarget();
 		if (promotionTarget)
@@ -528,22 +528,21 @@ std::pair<bool, MoveCheckStatus> GameState::tryApplyMove(Move move, bool skipVal
 		if (movingPiece.type == PieceType::PAWN)
 		{
 			this->halfmoves = 0;
-			int forwardForMovingPawn = move.dstY > move.srcY ? 1 : -1;
-			if (abs(move.dstY - move.srcY) == 2)
+			int forwardForMovingPawn = move.to.y > move.from.y ? 1 : -1;
+			if (abs(move.to.y - move.from.y) == 2)
 			{
-				enpassantX = move.srcX;
-				enpassantY = move.srcY + forwardForMovingPawn;
+				enpassant = Square(move.from.x, move.from.y + forwardForMovingPawn);
 				eraseEnpassant = false;
 			}
-			else if (move.dstX == enpassantX && move.dstY == enpassantY)
+			else if (move.to == enpassant)
 			{
-				getPieceAt(enpassantX, enpassantY - forwardForMovingPawn).type = PieceType::EMPTY;
+				getPieceAt(Square(enpassant.x, enpassant.y - forwardForMovingPawn)).type = PieceType::EMPTY;
 			}
 		}
 		movingPiece.type = PieceType::EMPTY;
 	}
 	
-	if (eraseEnpassant) enpassantX = enpassantY = -1;
+	if (eraseEnpassant) enpassant = std::nullopt;
 	statusUpToDate = false;
 	return { true, status };
 }
@@ -689,14 +688,6 @@ std::string GameState::toFEN()
 
 	ss << ' ' << halfmoves << ' ' << fullmoves;
 	return ss.str();
-}
-
-void GameState::rankAndFileToXY(const char* rankAndFile, int& retX, int& retY) const
-{
-	assert(rankAndFile[0] >= 'a' && rankAndFile[0] <= 'h');
-	assert(rankAndFile[1] >= '1' && rankAndFile[1] <= '8');
-	retX = rankAndFile[0] - 'a';
-	retY = 7 - (rankAndFile[1] - '1');
 }
 
 Path GameState::getPath(int startX, int startY, int stepX, int stepY)
