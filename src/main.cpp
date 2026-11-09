@@ -177,7 +177,8 @@ void UCI()
 			ss.str(cmd.substr(3));
 			while (ss >> token) if (token == "depth") ss >> params.maxDepth;
 
-			SearchReturn mv = gameState.findBestMove(params, 1);
+			uint64_t nodesSearched = 0;
+			SearchReturn mv = gameState.findBestMove(params, 1, &nodesSearched);
 
 			std::string bestMoveStr;
 			if (mv.bestMove.type == MoveType::WHITE_KINGSIDE_CASTLE) bestMoveStr = "e1g1";
@@ -194,7 +195,9 @@ void UCI()
 				bestMoveStr = algebraic;
 			}
 			
-			std::cout << "info score cp " << int(mv.evaluation * 100) << "\n";
+			int evalScore = mv.evaluation * 100;
+			int reportedScore = gameState.whitesTurn ? evalScore : -evalScore;
+			std::cout << "info score cp " << reportedScore << " nodes " << nodesSearched << "\n";
 			std::cout << "bestmove " << bestMoveStr << "\n";
 		}
 		if (cmd == "quit") return;
@@ -338,10 +341,11 @@ int main(int argc, char** argv)
 
 		if (!state.whitesTurn)
 		{
-			SearchReturn search = state.findBestMove(params, 1);
+			uint64_t nodesSearched = 0;
+			SearchReturn search = state.findBestMove(params, 1, &nodesSearched);
 			state.tryApplyMove(search.bestMove);
 			state.updateStatus();
-			std::cout << "Eval: " << search.evaluation << "\n";
+			std::cout << "Eval: " << search.evaluation << ", nodes searched: " << nodesSearched << "\n";
 		}
 	}
 

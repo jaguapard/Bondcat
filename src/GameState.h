@@ -45,7 +45,7 @@ struct GameState
 	GameStatus status;
 	bool statusUpToDate = false;
 
-	SearchReturn findBestMove(const SearchParams& params, int currDepth);
+	SearchReturn findBestMove(const SearchParams& params, int currDepth, uint64_t* nodesVisited = nullptr);
 	static GameState newGame();
 
 	void updateStatus();

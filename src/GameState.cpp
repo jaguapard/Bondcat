@@ -22,7 +22,7 @@ constexpr std::array<float, 64> bishopMult = {
 	0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95,
 	1, 1, 1, 1, 1, 1, 1, 1,
 };
-SearchReturn GameState::findBestMove(const SearchParams& params, int currDepth)
+SearchReturn GameState::findBestMove(const SearchParams& params, int currDepth, uint64_t* nodesVisited)
 {
 	//if (currDepth >= params.maxDepth) //TODO: check if depth is off by one (i think it is)
 	auto moves = getAllLegalMoves();
@@ -37,6 +37,7 @@ SearchReturn GameState::findBestMove(const SearchParams& params, int currDepth)
 		GameState copy = *this;
 		copy.tryApplyMove(move, true);
 		copy.updateStatus();
+		if (nodesVisited) ++*nodesVisited;
 
 		float eval = 0;
 		//if (fullmoves < 15 && getPieceAt(move.srcX, move.srcY).type == PieceType::ROOK && getPieceAt(move.srcX, move.srcY).team == currTeamsTurn) eval += whitesTurn ? 4.5 : -4.5;
@@ -44,7 +45,7 @@ SearchReturn GameState::findBestMove(const SearchParams& params, int currDepth)
 		if (copy.status == GameStatus::ONGOING)
 		{
 			int i = -1;
-			if (currDepth < params.maxDepth) eval = copy.findBestMove(params, currDepth + 1).evaluation;
+			if (currDepth < params.maxDepth) eval = copy.findBestMove(params, currDepth + 1, nodesVisited).evaluation;
 			else
 			{
 				float whiteScore = 0, blackScore = 0;
