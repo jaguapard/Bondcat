@@ -57,8 +57,8 @@ SearchReturn GameState::findBestMove(const SearchParams& params, int currDepth)
 				if (it.type == PieceType::EMPTY) continue;
 				float& score = (it.team == Team::WHITE) ? whiteScore : blackScore;
 				if (it.type == PieceType::PAWN) score += 1;
-				if (it.type == PieceType::KNIGHT) score += 3 * knightMult[i];
-				if (it.type == PieceType::BISHOP) score += 3.1 * bishopMult[i];
+				if (it.type == PieceType::KNIGHT) score += 3; //* knightMult[i];
+				if (it.type == PieceType::BISHOP) score += 3.1;// * bishopMult[i];
 				if (it.type == PieceType::ROOK) score += 5;
 				if (it.type == PieceType::QUEEN) score += 9;
 			}
