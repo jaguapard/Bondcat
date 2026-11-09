@@ -116,17 +116,14 @@ void GameState::updateStatus()
 	bool kingChecked = isTeamsKingChecked(nextTeamToMove);
 	if (kingChecked)
 	{
-		for (int y = 0; y < 8; ++y)
+		for (Square sq : Square::all_inBounds())
 		{
-			for (int x = 0; x < 8; ++x)
+			Piece& p = getPieceAt(sq);
+			if (p.team != nextTeamToMove || p.type != PieceType::KING) continue;
+			auto legalKingMoves = getAllLegalMovesForPieceAt(sq);
+			if (legalKingMoves.size() == 0)
 			{
-				Piece& p = getPieceAt(x, y);
-				if (p.team != nextTeamToMove || p.type != PieceType::KING) continue;
-				auto legalKingMoves = getAllLegalMovesForPieceAt(x, y);
-				if (legalKingMoves.size() == 0)
-				{
-					this->status = whitesTurn ? GameStatus::BLACK_WON_BY_CHECKMATE : GameStatus::WHITE_WON_BY_CHECKMATE;
-				}
+				this->status = whitesTurn ? GameStatus::BLACK_WON_BY_CHECKMATE : GameStatus::WHITE_WON_BY_CHECKMATE;
 			}
 		}
 	}
@@ -181,14 +178,10 @@ void GameState::reset()
 std::vector<Move> GameState::getAllLegalMoves()
 {
 	std::vector<Move> ret;
-
-	for (int y = 0; y < 8; ++y)
+	for (Square sq : Square::all_inBounds())
 	{
-		for (int x = 0; x < 8; ++x)
-		{
-			auto moves = getAllLegalMovesForPieceAt(x, y);
-			for (auto& it : moves) ret.push_back(it);
-		}
+		auto moves = getAllLegalMovesForPieceAt(sq);
+		for (auto& it : moves) ret.push_back(it);
 	}
 
 	for (auto ct : { MoveType::WHITE_KINGSIDE_CASTLE, MoveType::WHITE_QUEENSIDE_CASTLE, MoveType::BLACK_KINGSIDE_CASTLE, MoveType::BLACK_QUEENSIDE_CASTLE })
@@ -199,28 +192,22 @@ std::vector<Move> GameState::getAllLegalMoves()
 	}
 	return ret;
 }
-std::vector<Move> GameState::getAllLegalMovesForPieceAt(int x, int y)
+std::vector<Move> GameState::getAllLegalMovesForPieceAt(Square sq)
 {
 	if (!statusUpToDate) throw std::runtime_error("Status out of date");
 	std::vector<Move> ret;
-	for (int dstY = 0; dstY < 8; ++dstY)
+
+	Piece& movingPiece = getPieceAt(sq);
+	for (Square toSq : Square::all_inBounds())
 	{
-		for (int dstX = 0; dstX < 8; ++dstX)
+		Move move(sq, toSq, MoveType::MOVE_TO_SQUARE);
+		if (isLegalMove(move) == MoveCheckStatus::LEGAL) ret.emplace_back(move);
+		if (movingPiece.type == PieceType::PAWN)
 		{
-			Move move;
-			move.type = MoveType::MOVE_TO_SQUARE;
-			move.srcX = x;
-			move.srcY = y;
-			move.dstX = dstX;
-			move.dstY = dstY;
-			if (isLegalMove(move) == MoveCheckStatus::LEGAL) ret.push_back(move);
-			if (getPieceAt(x, y).type == PieceType::PAWN)
+			for (auto t : { MoveType::MOVE_AND_PROMOTE_TO_KNIGHT, MoveType::MOVE_AND_PROMOTE_TO_BISHOP, MoveType::MOVE_AND_PROMOTE_TO_ROOK, MoveType::MOVE_AND_PROMOTE_TO_QUEEN })
 			{
-				for (auto t : { MoveType::MOVE_AND_PROMOTE_TO_KNIGHT, MoveType::MOVE_AND_PROMOTE_TO_BISHOP, MoveType::MOVE_AND_PROMOTE_TO_ROOK, MoveType::MOVE_AND_PROMOTE_TO_QUEEN })
-				{
-					move.type = t;
-					if (isLegalMove(move) == MoveCheckStatus::LEGAL) ret.push_back(move);
-				}
+				move.type = t;
+				if (isLegalMove(move) == MoveCheckStatus::LEGAL) ret.push_back(move);
 			}
 		}
 	}
@@ -300,9 +287,9 @@ LegalMoves GameState::getAllLegalMoves()
 	return ret;
 }
 */
-Piece& GameState::getPieceAt(int x, int y)
+Piece& GameState::getPieceAt(Square s)
 {
-	return board[y * 8 + x];
+	return board[s.y * 8 + s.x];
 }
 
 std::pair<Piece&, Piece&> GameState::getPiecesAtCaslingSquares(Move move)
@@ -356,7 +343,7 @@ MoveCheckStatus GameState::isLegalCastlingMove(Move move)
 
 	for (int i = 0; i < 3; ++i)
 	{
-		if (getPieceAt(obstructionCheckX[i], kingY).type != PieceType::EMPTY) return CASTLING_PATH_OBSTRUCTED;
+		if (getPieceAt(Square(obstructionCheckX[i], kingY)).type != PieceType::EMPTY) return CASTLING_PATH_OBSTRUCTED;
 		if (squareIsAttackedFor(attackedCheckX[i], kingY, castleTeam)) return CASTLING_PATH_PASSES_THROUGH_CHECK;
 	}
 	return LEGAL;
@@ -372,20 +359,19 @@ MoveCheckStatus GameState::isLegalMove(Move move)
 	}
 
 	//Non-castling, i.e. move or move+promote
-	if (move.srcX < 0 || move.srcX >= 8 || move.srcY < 0 || move.srcY >= 8) return MoveCheckStatus::SRC_OUT_OF_BOUNDS;
-	if (move.dstX < 0 || move.dstX >= 8 || move.dstY < 0 || move.dstY >= 8) return MoveCheckStatus::DST_OUT_OF_BOUNDS;
-	if (move.dstX == move.srcX && move.dstY == move.srcY) return MoveCheckStatus::STATIONARY_MOTION; //nothing burger
+	if (move.from.outOfBounds()) return MoveCheckStatus::SRC_OUT_OF_BOUNDS;
+	if (move.to.outOfBounds()) return MoveCheckStatus::DST_OUT_OF_BOUNDS;
+	if (move.from == move.to) return MoveCheckStatus::STATIONARY_MOTION; //nothing burger
 
-	const Piece& movingPiece = getPieceAt(move.srcX, move.srcY);
-	const Piece& targetPiece = getPieceAt(move.dstX, move.dstY);
+	const Piece& movingPiece = getPieceAt(move.from);
+	const Piece& targetPiece = getPieceAt(move.to);
 	assert(movingPiece.type != PieceType::UNINITIALIZED);
 	assert(targetPiece.type != PieceType::UNINITIALIZED);
 	if ((movingPiece.team == Team::WHITE) != whitesTurn) return MoveCheckStatus::TURN_TEAM_MISMATCH; //can't move other side's pieces
 
 	//redundant simplifications
-	int dx = move.dstX - move.srcX;
-	int dy = move.dstY - move.srcY;
-	auto targetPair = std::make_pair(move.dstX, move.dstY);
+	int dx = move.to.x - move.from.x;
+	int dy = move.to.y - move.from.y;
 	if (movingPiece.type == PieceType::EMPTY) return MoveCheckStatus::MOVING_EMPTY_SQUARE; //voids can't move
 
 	//filter out non-pawn promotions (can be encoded, but are never legal)

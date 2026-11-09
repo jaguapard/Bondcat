@@ -1,5 +1,10 @@
 #include "Move.h"
 
+Move::Move(Square from, Square to, MoveType type)
+	:from(from),to(to),type(type)
+{
+}
+
 std::optional<PieceType> Move::getPromotionTarget() const
 {
 	switch (type)

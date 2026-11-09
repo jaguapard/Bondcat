@@ -54,11 +54,11 @@ struct GameState
 	void reset();
 
 	std::vector<Move> getAllLegalMoves();
-	std::vector<Move> getAllLegalMovesForPieceAt(int x, int y);
+	std::vector<Move> getAllLegalMovesForPieceAt(Square sq);
 
-	Piece& getPieceAt(int x, int y);
+	Piece& getPieceAt(Square s);
 	//const Piece& getPieceAt(int x, int y) const;
-	Piece& getPieceAt(const char* algebraic);
+	//Piece& getPieceAt(const char* algebraic);
 	//const Piece& getPieceAt(const char* algebraic) const;
 
 	static GameState fromFEN(const std::string& fenStr);

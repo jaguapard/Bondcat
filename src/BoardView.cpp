@@ -51,7 +51,7 @@ void BoardView::draw(SDL_Renderer* rend, BoardDrawCtx& ctx)
 			{
 				if (ctx.textures)
 				{
-					Piece piece = ctx.gameState->getPieceAt(x, y);
+					Piece piece = ctx.gameState->getPieceAt(Square(x, y));
 					if (piece.type != PieceType::EMPTY)
 					{
 						for (auto& it : *ctx.textures)
