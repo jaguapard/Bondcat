@@ -394,28 +394,28 @@ MoveCheckStatus GameState::isLegalMove(Move move)
 		}
 		if (movingPiece.type == PieceType::ROOK || movingPiece.type == PieceType::QUEEN)
 		{
-			slidingPaths[pathCount++] = this->getPath(move.srcX, move.srcY, -1, 0); //left
-			slidingPaths[pathCount++] = this->getPath(move.srcX, move.srcY, 1, 0); //right
-			slidingPaths[pathCount++] = this->getPath(move.srcX, move.srcY, 0, -1); //up
-			slidingPaths[pathCount++] = this->getPath(move.srcX, move.srcY, 0, 1); //down
+			slidingPaths[pathCount++] = this->getPath(move.from.x, move.from.y, -1, 0); //left
+			slidingPaths[pathCount++] = this->getPath(move.from.x, move.from.y, 1, 0); //right
+			slidingPaths[pathCount++] = this->getPath(move.from.x, move.from.y, 0, -1); //up
+			slidingPaths[pathCount++] = this->getPath(move.from.x, move.from.y, 0, 1); //down
 		}
 		if (movingPiece.type == PieceType::BISHOP || movingPiece.type == PieceType::QUEEN)
 		{
-			slidingPaths[pathCount++] = this->getPath(move.srcX, move.srcY, -1, -1); //left-up diagonal
-			slidingPaths[pathCount++] = this->getPath(move.srcX, move.srcY, 1, -1); //right-up
-			slidingPaths[pathCount++] = this->getPath(move.srcX, move.srcY, -1, 1); //left-down
-			slidingPaths[pathCount++] = this->getPath(move.srcX, move.srcY, 1, 1); //right-down
+			slidingPaths[pathCount++] = this->getPath(move.from.x, move.from.y, -1, -1); //left-up diagonal
+			slidingPaths[pathCount++] = this->getPath(move.from.x, move.from.y, 1, -1); //right-up
+			slidingPaths[pathCount++] = this->getPath(move.from.x, move.from.y, -1, 1); //left-down
+			slidingPaths[pathCount++] = this->getPath(move.from.x, move.from.y, 1, 1); //right-down
 		}
 
 		if (movingPiece.type == PieceType::PAWN)
 		{
 			auto promotionTarget = move.getPromotionTarget();
-			bool onLastRank = move.dstY == (whitesTurn ? 0 : 7);
+			bool onLastRank = move.to.y == (whitesTurn ? 0 : 7);
 			if (promotionTarget && !onLastRank) return MoveCheckStatus::PAWN_PROMOTION_ON_NONLAST_RANK; //can promote only if on last rank
 			if (!promotionTarget && onLastRank) return MoveCheckStatus::PAWN_PROMOTION_ELIDED; //cannot stay as pawn on last rank, promotion required
 
 			int forward = movingPiece.team == Team::WHITE ? -1 : 1; //direction of forward movement in board's Y for current turn's team
-			bool moveToEnpassantSquare = move.dstX == enpassantX && move.dstY == enpassantY;
+			bool moveToEnpassantSquare = move.to.x == enpassantX && move.to.y == enpassantY;
 			bool trulyEmpty = !moveToEnpassantSquare && targetPiece.type == PieceType::EMPTY;
 			bool oneStep = dx == 0 && dy == forward && trulyEmpty;
 			bool twoSteps = dx == 0 && dy == forward * 2 && !movingPiece.hasMoved && trulyEmpty;
@@ -423,24 +423,22 @@ MoveCheckStatus GameState::isLegalMove(Move move)
 			if (capture) return LEGAL;
 			if (!oneStep && !twoSteps && !capture) return PAWN_GENERAL_MOVEMENT_ILLEGAL;
 			//after these checks, path can still be obstructed, so a check for that is still needed
-			slidingPaths[pathCount++] = this->getPath(move.srcX, move.srcY, 0, forward);
+			slidingPaths[pathCount++] = this->getPath(move.from.x, move.from.y, 0, forward);
 		}
 
 		if (movingPiece.type == PieceType::KING)
 		{
 			if (abs(dx) > 1 || abs(dy) > 1) return MoveCheckStatus::KING_TOO_FAR;
 
-			for (int y = 0; y < 8; ++y)
-				for (int x = 0; x < 8; ++x)
+			for (auto kingCheckSq : Square::all_inBounds())
+			{
+				Piece& p = getPieceAt(kingCheckSq);
+				if (p.type == PieceType::KING && p.team != movingPiece.team)
 				{
-					Piece& p = getPieceAt(x, y);
-					if (p.type == PieceType::KING && p.team != movingPiece.team)
-					{
-						if (abs(move.dstX - x) <= 1 && abs(move.dstY - y) <= 1) return MoveCheckStatus::KING_RUNS_INTO_ANOTHER_KING;
-						else break;
-					}
+					if (abs(move.to.x - kingCheckSq.x) <= 1 && abs(move.to.y - kingCheckSq.y) <= 1) return MoveCheckStatus::KING_RUNS_INTO_ANOTHER_KING;
+					else break;
 				}
-			//TODO: king can't move into other king's squares
+			}
 			return MoveCheckStatus::LEGAL;
 		}
 
@@ -450,7 +448,7 @@ MoveCheckStatus GameState::isLegalMove(Move move)
 			bool pathFound = false;
 			for (int i = 0; i < pathCount; ++i)
 			{
-				pathFound = slidingPaths[i].isPointOnPath(move.dstX, move.dstY);
+				pathFound = slidingPaths[i].isPointOnPath(move.to.x, move.to.y);
 				if (pathFound) break;
 			}
 			if (!pathFound) return MOVING_SLIDING_PATHS_EXIST_BUT_NONE_MATCH;
