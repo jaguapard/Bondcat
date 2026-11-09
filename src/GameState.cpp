@@ -3,43 +3,71 @@
 #include <assert.h>
 #include <unordered_map>
 
+constexpr std::array<float, 64> knightMult = {
+	0.3, 0.4, 0.5, 0.6, 0.6, 0.5, 0.4, 0.3,
+	0.5, 0.6, 0.6, 0.7, 0.7, 0.6, 0.5, 0.4,
+	0.6, 0.7, 0.75, 0.75, 0.75, 0.7, 0.65, 0.5,
+	0.6, 0.7, 0.9, 0.9, 0.9, 0.9, 0.8, 0.7,
+	0.6, 0.7, 0.9, 0.9, 0.9, 0.9, 0.8, 0.7,
+	0.6, 0.7, 0.75, 0.75, 0.75, 0.7, 0.65, 0.5,
+	0.5, 0.6, 0.6, 0.7, 0.7, 0.6, 0.5, 0.4,
+};
+constexpr std::array<float, 64> bishopMult = {
+	1, 1, 1, 1, 1, 1, 1, 1,
+	0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95,
+	0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9,
+	0.85, 0.85, 0.85, 0.85, 0.85, 0.85, 0.85, 0.85,
+	0.85, 0.85, 0.85, 0.85, 0.85, 0.85, 0.85, 0.85,
+	0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9,
+	0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95,
+	1, 1, 1, 1, 1, 1, 1, 1,
+};
 SearchReturn GameState::findBestMove(const SearchParams& params, int currDepth)
 {
 	//if (currDepth >= params.maxDepth) //TODO: check if depth is off by one (i think it is)
 	auto moves = getAllLegalMoves();
 	SearchReturn ret;
-	if (whitesTurn) ret.evaluation = INFINITY;
-	else ret.evaluation = -INFINITY;
+	if (whitesTurn) ret.evaluation = -INFINITY;
+	else ret.evaluation = INFINITY;
 
 	bool first = true;
+	Team currTeamsTurn = whitesTurn ? WHITE : BLACK;
 	for (auto& move : moves)
 	{
 		GameState copy = *this;
 		copy.tryApplyMove(move, true);
 		copy.updateStatus();
+		float eval = 0;
+		//if (fullmoves < 15 && getPieceAt(move.srcX, move.srcY).type == PieceType::ROOK && getPieceAt(move.srcX, move.srcY).team == currTeamsTurn) eval += whitesTurn ? 4.5 : -4.5;
 
-		float eval;
-		
+		int i = -1;
 		if (currDepth < params.maxDepth) eval = copy.findBestMove(params, currDepth + 1).evaluation;
 		else
 		{
 			float whiteScore = 0, blackScore = 0;
+
+			if (copy.whiteCanKingsideCastle) whiteScore += 0.5;
+			else if (copy.whiteCanQueensideCastle) whiteScore += 0.33;
+			if (copy.blackCanKingsideCastle) blackScore += 0.5;
+			else if (copy.blackCanQueensideCastle) blackScore += 0.33;
+
 			for (auto& it : copy.board)
 			{
+				++i;
 				if (it.type == PieceType::EMPTY) continue;
 				float& score = (it.team == Team::WHITE) ? whiteScore : blackScore;
 				if (it.type == PieceType::PAWN) score += 1;
-				if (it.type == PieceType::KNIGHT) score += 3;
-				if (it.type == PieceType::BISHOP) score += 3.1;
+				if (it.type == PieceType::KNIGHT) score += 3 * knightMult[i];
+				if (it.type == PieceType::BISHOP) score += 3.1 * bishopMult[i];
 				if (it.type == PieceType::ROOK) score += 5;
 				if (it.type == PieceType::QUEEN) score += 9;
 			}
-			eval = blackScore - whiteScore;
+			eval += whiteScore - blackScore;
 		}
 
 		//TODO: if checkmate/stalemate return corresponding score without going deeper
 		
-		if (first || (copy.whitesTurn && eval > ret.evaluation) || (!copy.whitesTurn && eval < ret.evaluation))
+		if (first || (whitesTurn && eval > ret.evaluation) || (!whitesTurn && eval < ret.evaluation))
 		{
 			ret.evaluation = eval;
 			ret.bestMove = move;
