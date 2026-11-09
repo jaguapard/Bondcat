@@ -84,6 +84,7 @@ SearchReturn GameState::findBestMove(const SearchParams& params, int currDepth)
 			case GameStatus::DRAW_ACCEPTED:
 			case GameStatus::DRAW_STALEMATE:
 			case GameStatus::DRAW_THREEFOLD_REPETITION:
+			case GameStatus::DRAW_INSUFFICIENT_MATERIAL:
 				eval = 0; break;
 			default:
 				break;
@@ -130,6 +131,45 @@ void GameState::updateStatus()
 	}
 	else if (getAllLegalMoves().size() == 0) this->status = GameStatus::DRAW_STALEMATE;
 	else this->status = GameStatus::ONGOING;
+
+	if (this->halfmoves >= 100) this->status = GameStatus::DRAW_FIFTY_MOVE_RULE;
+	//TODO: 3-fold repetition draws, insufficient material
+
+	/* //unsure about this
+	bool insufficiet = [&]() {
+		bool wBishopLightSq = false, wBishopDarkSq = false, bBishopLightSq = false, bBishopDarkSq = false;
+		int wKnightCount = 0, bKnightCount = 0;
+		bool wLoneKing = true, bLoneKing = true;
+		for (int y = 0; y < 8; ++y)
+		{
+			for (int x = 0; x < 8; ++x)
+			{
+				Piece& p = getPieceAt(x, y);
+				if (p.type != PieceType::KING && p.type != PieceType::EMPTY) p.team == WHITE ? (wLoneKing = false) : (bLoneKing = false);
+				if (p.type == PieceType::QUEEN || p.type == PieceType::ROOK || p.type == PieceType::PAWN) return false;
+				if (p.type == PieceType::KNIGHT) p.team == WHITE ? wKnightCount++ : bKnightCount++;
+				if (p.type == PieceType::BISHOP)
+				{
+					bool darkSq = ((x ^ y) % 2);
+					if (p.team == WHITE)
+					{
+						if (darkSq) wBishopLightSq = true;
+						else wBishopDarkSq = true;
+					}
+					if (p.team == BLACK)
+					{
+						if (darkSq) bBishopLightSq = true;
+						else bBishopDarkSq = true;
+					}
+				}
+			}
+		}
+		if ((wBishopDarkSq && bBishopLightSq) || (wBishopLightSq && bBishopDarkSq)) return false;
+		if (wLoneKing )
+		return true;
+		}();
+	if (insufficiet) this->status = GameStatus::DRAW_INSUFFICIENT_MATERIAL;
+	*/
 }
 
 void GameState::reset()
@@ -402,6 +442,17 @@ MoveCheckStatus GameState::isLegalMove(Move move)
 		if (movingPiece.type == PieceType::KING)
 		{
 			if (abs(dx) > 1 || abs(dy) > 1) return MoveCheckStatus::KING_TOO_FAR;
+
+			for (int y = 0; y < 8; ++y)
+				for (int x = 0; x < 8; ++x)
+				{
+					Piece& p = getPieceAt(x, y);
+					if (p.type == PieceType::KING && p.team != movingPiece.team)
+					{
+						if (abs(move.dstX - x) <= 1 && abs(move.dstY - y) <= 1) return MoveCheckStatus::KING_RUNS_INTO_ANOTHER_KING;
+						else break;
+					}
+				}
 			//TODO: king can't move into other king's squares
 			return MoveCheckStatus::LEGAL;
 		}
