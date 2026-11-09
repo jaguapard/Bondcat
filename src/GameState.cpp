@@ -46,10 +46,11 @@ SearchReturn GameState::findBestMove(const SearchParams& params, int currDepth)
 		{
 			float whiteScore = 0, blackScore = 0;
 
+			/*
 			if (copy.whiteCanKingsideCastle) whiteScore += 0.5;
 			else if (copy.whiteCanQueensideCastle) whiteScore += 0.33;
 			if (copy.blackCanKingsideCastle) blackScore += 0.5;
-			else if (copy.blackCanQueensideCastle) blackScore += 0.33;
+			else if (copy.blackCanQueensideCastle) blackScore += 0.33;*/
 
 			for (auto& it : copy.board)
 			{
