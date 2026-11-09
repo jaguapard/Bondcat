@@ -37,36 +37,58 @@ SearchReturn GameState::findBestMove(const SearchParams& params, int currDepth)
 		GameState copy = *this;
 		copy.tryApplyMove(move, true);
 		copy.updateStatus();
+
 		float eval = 0;
 		//if (fullmoves < 15 && getPieceAt(move.srcX, move.srcY).type == PieceType::ROOK && getPieceAt(move.srcX, move.srcY).team == currTeamsTurn) eval += whitesTurn ? 4.5 : -4.5;
 
-		int i = -1;
-		if (currDepth < params.maxDepth) eval = copy.findBestMove(params, currDepth + 1).evaluation;
+		if (copy.status == GameStatus::ONGOING)
+		{
+			int i = -1;
+			if (currDepth < params.maxDepth) eval = copy.findBestMove(params, currDepth + 1).evaluation;
+			else
+			{
+				float whiteScore = 0, blackScore = 0;
+
+				/*
+				if (copy.whiteCanKingsideCastle) whiteScore += 0.5;
+				else if (copy.whiteCanQueensideCastle) whiteScore += 0.33;
+				if (copy.blackCanKingsideCastle) blackScore += 0.5;
+				else if (copy.blackCanQueensideCastle) blackScore += 0.33;*/
+
+				for (auto& it : copy.board)
+				{
+					++i;
+					if (it.type == PieceType::EMPTY) continue;
+					float& score = (it.team == Team::WHITE) ? whiteScore : blackScore;
+					if (it.type == PieceType::PAWN) score += 1;
+					if (it.type == PieceType::KNIGHT) score += 3; //* knightMult[i];
+					if (it.type == PieceType::BISHOP) score += 3.1;// * bishopMult[i];
+					if (it.type == PieceType::ROOK) score += 5;
+					if (it.type == PieceType::QUEEN) score += 9;
+				}
+				eval += whiteScore - blackScore;
+			}
+		}
 		else
 		{
-			float whiteScore = 0, blackScore = 0;
-
-			/*
-			if (copy.whiteCanKingsideCastle) whiteScore += 0.5;
-			else if (copy.whiteCanQueensideCastle) whiteScore += 0.33;
-			if (copy.blackCanKingsideCastle) blackScore += 0.5;
-			else if (copy.blackCanQueensideCastle) blackScore += 0.33;*/
-
-			for (auto& it : copy.board)
+			switch (copy.status)
 			{
-				++i;
-				if (it.type == PieceType::EMPTY) continue;
-				float& score = (it.team == Team::WHITE) ? whiteScore : blackScore;
-				if (it.type == PieceType::PAWN) score += 1;
-				if (it.type == PieceType::KNIGHT) score += 3; //* knightMult[i];
-				if (it.type == PieceType::BISHOP) score += 3.1;// * bishopMult[i];
-				if (it.type == PieceType::ROOK) score += 5;
-				if (it.type == PieceType::QUEEN) score += 9;
+			case GameStatus::WHITE_WON_BY_TIME:
+			case GameStatus::WHITE_WON_BY_CHECKMATE:
+			case GameStatus::WHITE_WON_ENEMY_RESIGNED:
+				eval = INFINITY; break;
+			case GameStatus::BLACK_WON_BY_TIME:
+			case GameStatus::BLACK_WON_BY_CHECKMATE:
+			case GameStatus::BLACK_WON_ENEMY_RESIGNED:
+				eval = -INFINITY; break;
+			case GameStatus::DRAW_ACCEPTED:
+			case GameStatus::DRAW_STALEMATE:
+			case GameStatus::DRAW_THREEFOLD_REPETITION:
+				eval = 0; break;
+			default:
+				break;
 			}
-			eval += whiteScore - blackScore;
 		}
-
-		//TODO: if checkmate/stalemate return corresponding score without going deeper
 		
 		if (first || (whitesTurn && eval > ret.evaluation) || (!whitesTurn && eval < ret.evaluation))
 		{
