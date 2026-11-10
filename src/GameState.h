@@ -7,6 +7,8 @@
 #include <optional>
 #include <assert.h>
 #include <chrono>
+#include <map>
+
 /*
 struct LegalMoves
 {
@@ -38,6 +40,15 @@ struct SearchReturn
 	uint64_t nodesSearched = 0;
 	double searchSeconds, nodesPerSecond;
 };
+
+struct CompressedPosition
+{
+	CompressedPosition() = default;
+
+	std::array<uint64_t, 4> bits;
+	CompressedPosition(const std::array<Piece, 64>& board);
+	bool operator<(const CompressedPosition& other) const;
+};
 struct GameState
 {
 	std::array<Piece, 64> board;
@@ -48,6 +59,7 @@ struct GameState
 	std::optional<Square> enpassant;
 
 	std::optional<GameStatus> gameStatus;
+	std::map<CompressedPosition, int> seenPositions;
 
 	SearchReturn findBestMove(const SearchParams& params, int currDepth);
 	static GameState newGame();

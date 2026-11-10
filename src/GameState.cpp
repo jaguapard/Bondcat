@@ -44,7 +44,9 @@ SearchReturn GameState::findBestMove(const SearchParams& params, int currDepth)
 	{
 		GameState copy = *this;
 		copy.tryApplyMove(move, true);
+		//if (currDepth == 3) __debugbreak();
 		copy.updateStatus();
+		//if (currDepth == 3 && !copy.gameStatus) __debugbreak();
 		++ret.nodesSearched;
 
 		float eval = 0;
@@ -144,13 +146,15 @@ void GameState::updateStatus()
 			if (legalKingMoves.size() == 0)
 			{
 				this->gameStatus = whitesTurn ? GameStatus::BLACK_WON_BY_CHECKMATE : GameStatus::WHITE_WON_BY_CHECKMATE;
+				return;
 			}
 		}
 	}
-	else if (getAllLegalMoves().size() == 0) this->gameStatus = GameStatus::DRAW_STALEMATE;
-	else this->gameStatus = GameStatus::ONGOING;
+	
+	if (getAllLegalMoves().size() == 0) { this->gameStatus = GameStatus::DRAW_STALEMATE; return; };
+	this->gameStatus = GameStatus::ONGOING;
 
-	if (this->halfmoves >= 100) this->gameStatus = GameStatus::DRAW_FIFTY_MOVE_RULE;
+	if (this->halfmoves >= 100) { this->gameStatus = GameStatus::DRAW_FIFTY_MOVE_RULE; return; };
 	//TODO: 3-fold repetition draws, insufficient material
 
 	/* //unsure about this
@@ -188,6 +192,9 @@ void GameState::updateStatus()
 		}();
 	if (insufficiet) this->status = GameStatus::DRAW_INSUFFICIENT_MATERIAL;
 	*/
+	if (this->seenPositions[board] >= 3) { this->gameStatus = GameStatus::DRAW_THREEFOLD_REPETITION; return; }
+
+	//if (!this->gameStatus) __debugbreak()
 }
 
 void GameState::reset()
@@ -565,6 +572,7 @@ std::pair<bool, MoveCheckStatus> GameState::tryApplyMove(Move move, bool skipVal
 	//sadly, we can't put the check of game status here, since it creates infinite recursion of getting legal moves. 
 	//Thus, gameStatus is made optional that will explode on unwrapping, forcing callers to update game status
 	this->gameStatus = std::nullopt;
+	this->seenPositions[board]++;
 	return { true, status };
 }
 
@@ -800,4 +808,36 @@ bool Path::isPointOnPath(int x, int y)
 	nStepsX = (x - startX) / stepX;
 	nStepsY = (y - startY) / stepY;
 	return nStepsX >= 0 && nStepsY >= 0 && nStepsX == nStepsY && nStepsX <= stepCount && nStepsY <= stepCount;
+}
+
+CompressedPosition::CompressedPosition(const std::array<Piece, 64>& board)
+{
+	this->bits = { 0 };
+	for (int i = 0; i < 64; ++i)
+	{
+		if (board[i].type == PieceType::EMPTY) continue;
+		int teamBit = board[i].team == BLACK ? 0 : 1;
+		uint64_t code = 0;
+		switch (board[i].type)
+		{
+		case PieceType::PAWN: code = 1; break;
+		case PieceType::KNIGHT: code = 2; break;
+		case PieceType::BISHOP: code = 3; break;
+		case PieceType::ROOK: code = 4; break;
+		case PieceType::QUEEN: code = 5; break;
+		default: break;
+		}
+		if (board[i].team == BLACK) code += 5;
+		this->bits[i / 16] |= code << (i * 4) % 64;
+	}
+}
+
+bool CompressedPosition::operator<(const CompressedPosition& other) const
+{
+	for (int i = 0; i < 4; ++i)
+	{
+		if (bits[i] == other.bits[i]) continue;
+		return bits[i] < other.bits[i];
+	}
+	return false; //equal
 }
