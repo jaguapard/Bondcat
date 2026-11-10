@@ -34,6 +34,9 @@ struct SearchReturn
 	Move bestMove;
 	float evaluation;
 	std::optional<int> mateIn;
+	
+	uint64_t nodesSearched = 0;
+	double searchSeconds, nodesPerSecond;
 };
 struct GameState
 {
@@ -46,7 +49,7 @@ struct GameState
 
 	std::optional<GameStatus> gameStatus;
 
-	SearchReturn findBestMove(const SearchParams& params, int currDepth, uint64_t* nodesVisited = nullptr);
+	SearchReturn findBestMove(const SearchParams& params, int currDepth);
 	static GameState newGame();
 
 	void updateStatus();

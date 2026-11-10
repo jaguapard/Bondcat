@@ -2,6 +2,7 @@
 #include <sstream>
 #include <assert.h>
 #include <unordered_map>
+#include <SDL3/SDL.h>
 
 constexpr std::array<float, 64> knightMult = {
 	0.3, 0.4, 0.5, 0.6, 0.6, 0.5, 0.4, 0.3,
@@ -22,11 +23,18 @@ constexpr std::array<float, 64> bishopMult = {
 	0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95,
 	1, 1, 1, 1, 1, 1, 1, 1,
 };
-SearchReturn GameState::findBestMove(const SearchParams& params, int currDepth, uint64_t* nodesVisited)
+SearchReturn GameState::findBestMove(const SearchParams& params, int currDepth)
 {
-	//if (currDepth >= params.maxDepth) //TODO: check if depth is off by one (i think it is)
-	auto moves = getAllLegalMoves();
+	assert(currDepth >= 1);
 	SearchReturn ret;
+	uint64_t searchStartNs;
+	if (currDepth == 1)
+	{
+		searchStartNs = SDL_GetTicksNS();
+	}
+
+	auto moves = getAllLegalMoves();
+	
 	if (whitesTurn) ret.evaluation = -INFINITY;
 	else ret.evaluation = INFINITY;
 
@@ -37,7 +45,7 @@ SearchReturn GameState::findBestMove(const SearchParams& params, int currDepth, 
 		GameState copy = *this;
 		copy.tryApplyMove(move, true);
 		copy.updateStatus();
-		if (nodesVisited) ++*nodesVisited;
+		++ret.nodesSearched;
 
 		float eval = 0;
 		//if (fullmoves < 15 && getPieceAt(move.srcX, move.srcY).type == PieceType::ROOK && getPieceAt(move.srcX, move.srcY).team == currTeamsTurn) eval += whitesTurn ? 4.5 : -4.5;
@@ -45,7 +53,12 @@ SearchReturn GameState::findBestMove(const SearchParams& params, int currDepth, 
 		if (*copy.gameStatus == GameStatus::ONGOING)
 		{
 			int i = -1;
-			if (currDepth < params.maxDepth) eval = copy.findBestMove(params, currDepth + 1, nodesVisited).evaluation;
+			if (currDepth < params.maxDepth)
+			{
+				SearchReturn childRet = copy.findBestMove(params, currDepth + 1);
+				ret.nodesSearched += childRet.nodesSearched;
+				eval = childRet.evaluation;
+			}
 			else
 			{
 				float whiteScore = 0, blackScore = 0;
@@ -98,6 +111,13 @@ SearchReturn GameState::findBestMove(const SearchParams& params, int currDepth, 
 			ret.bestMove = move;
 			first = false;
 		}
+	}
+
+	if (currDepth == 1)
+	{
+		uint64_t searchEndNs = SDL_GetTicksNS();
+		ret.searchSeconds = (searchEndNs - searchStartNs) / 1e9;
+		ret.nodesPerSecond = ret.nodesSearched / ret.searchSeconds;
 	}
 	return ret;
 }
