@@ -43,8 +43,8 @@ struct GameState
 	bool whitesTurn;
 	int halfmoves, fullmoves;
 	std::optional<Square> enpassant;
-	GameStatus status; //TODO: turn this into optional
-	bool statusUpToDate = false;
+
+	std::optional<GameStatus> gameStatus;
 
 	SearchReturn findBestMove(const SearchParams& params, int currDepth, uint64_t* nodesVisited = nullptr);
 	static GameState newGame();

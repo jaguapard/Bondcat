@@ -305,7 +305,7 @@ int main(int argc, char** argv)
 						boardDrawCtx.activeSquare = std::nullopt;
 						boardDrawCtx.circlesAt.clear();
 						state.updateStatus();
-						if (state.status != GameStatus::ONGOING) std::cout << "GAME OVER: " << StringifyEnum(state.status) << "\n";
+						if (state.gameStatus != GameStatus::ONGOING) std::cout << "GAME OVER: " << StringifyEnum(*state.gameStatus) << "\n";
 					}
 				}
 			}

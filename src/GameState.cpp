@@ -42,7 +42,7 @@ SearchReturn GameState::findBestMove(const SearchParams& params, int currDepth, 
 		float eval = 0;
 		//if (fullmoves < 15 && getPieceAt(move.srcX, move.srcY).type == PieceType::ROOK && getPieceAt(move.srcX, move.srcY).team == currTeamsTurn) eval += whitesTurn ? 4.5 : -4.5;
 
-		if (copy.status == GameStatus::ONGOING)
+		if (*copy.gameStatus == GameStatus::ONGOING)
 		{
 			int i = -1;
 			if (currDepth < params.maxDepth) eval = copy.findBestMove(params, currDepth + 1, nodesVisited).evaluation;
@@ -72,7 +72,7 @@ SearchReturn GameState::findBestMove(const SearchParams& params, int currDepth, 
 		}
 		else
 		{
-			switch (copy.status)
+			switch (*copy.gameStatus)
 			{
 			case GameStatus::WHITE_WON_BY_TIME:
 			case GameStatus::WHITE_WON_BY_CHECKMATE:
@@ -109,9 +109,6 @@ GameState GameState::newGame()
 
 void GameState::updateStatus()
 {
-	this->statusUpToDate = true;
-	//TODO: set game's status flags (draw, victory, etc)
-
 	Team nextTeamToMove = whitesTurn ? Team::WHITE : Team::BLACK;
 	bool kingChecked = isTeamsKingChecked(nextTeamToMove);
 	if (kingChecked)
@@ -123,14 +120,14 @@ void GameState::updateStatus()
 			auto legalKingMoves = getAllLegalMovesForPieceAt(sq);
 			if (legalKingMoves.size() == 0)
 			{
-				this->status = whitesTurn ? GameStatus::BLACK_WON_BY_CHECKMATE : GameStatus::WHITE_WON_BY_CHECKMATE;
+				this->gameStatus = whitesTurn ? GameStatus::BLACK_WON_BY_CHECKMATE : GameStatus::WHITE_WON_BY_CHECKMATE;
 			}
 		}
 	}
-	else if (getAllLegalMoves().size() == 0) this->status = GameStatus::DRAW_STALEMATE;
-	else this->status = GameStatus::ONGOING;
+	else if (getAllLegalMoves().size() == 0) this->gameStatus = GameStatus::DRAW_STALEMATE;
+	else this->gameStatus = GameStatus::ONGOING;
 
-	if (this->halfmoves >= 100) this->status = GameStatus::DRAW_FIFTY_MOVE_RULE;
+	if (this->halfmoves >= 100) this->gameStatus = GameStatus::DRAW_FIFTY_MOVE_RULE;
 	//TODO: 3-fold repetition draws, insufficient material
 
 	/* //unsure about this
@@ -194,7 +191,6 @@ std::vector<Move> GameState::getAllLegalMoves()
 }
 std::vector<Move> GameState::getAllLegalMovesForPieceAt(Square sq)
 {
-	if (!statusUpToDate) throw std::runtime_error("Status out of date");
 	std::vector<Move> ret;
 
 	Piece& movingPiece = getPieceAt(sq);
@@ -543,7 +539,9 @@ std::pair<bool, MoveCheckStatus> GameState::tryApplyMove(Move move, bool skipVal
 	}
 	
 	if (eraseEnpassant) enpassant = std::nullopt;
-	statusUpToDate = false;
+	//sadly, we can't put the check of game status here, since it creates infinite recursion of getting legal moves. 
+	//Thus, gameStatus is made optional that will explode on unwrapping, forcing callers to update game status
+	this->gameStatus = std::nullopt;
 	return { true, status };
 }
 
