@@ -69,6 +69,9 @@ SearchReturn GameState::findBestMove(const SearchParams& params, int currDepth)
 				if (copy.blackCanKingsideCastle) blackScore += 0.5;
 				else if (copy.blackCanQueensideCastle) blackScore += 0.33;*/
 
+				float mobilityBonus = moves.size() * 0.02;
+				if (whitesTurn) whiteScore += mobilityBonus;
+				else blackScore += mobilityBonus;
 				for (auto& it : copy.board)
 				{
 					++i;
