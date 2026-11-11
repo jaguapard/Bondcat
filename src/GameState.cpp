@@ -207,26 +207,32 @@ void GameState::updateStatus()
 {
 	Team nextTeamToMove = whitesTurn ? Team::WHITE : Team::BLACK;
 	bool kingChecked = isTeamsKingChecked(nextTeamToMove);
+	bool checkmate = false;
+	
+	auto allLegalMoves = getAllLegalMoves();
 	if (kingChecked)
 	{
-		for (Square sq : Square::all_inBounds())
+		for (auto& move : allLegalMoves)
 		{
-			Piece& p = getPieceAt(sq);
-			if (p.team != nextTeamToMove || p.type != PieceType::KING) continue;
-			auto legalKingMoves = getAllLegalMovesForPieceAt(sq);
-			if (legalKingMoves.size() == 0)
+			auto copy = *this;
+			copy.tryApplyMove(move, true);
+			if (!isTeamsKingChecked(nextTeamToMove))
 			{
-				this->gameStatus = whitesTurn ? GameStatus::BLACK_WON_BY_CHECKMATE : GameStatus::WHITE_WON_BY_CHECKMATE;
-				return;
+				checkmate = false;
+				break;
 			}
 		}
+		if (checkmate)
+		{
+			this->gameStatus = whitesTurn ? GameStatus::BLACK_WON_BY_CHECKMATE : GameStatus::WHITE_WON_BY_CHECKMATE;
+			return;
+		}
 	}
-	
-	if (getAllLegalMoves().size() == 0) { this->gameStatus = GameStatus::DRAW_STALEMATE; return; };
+	else if (allLegalMoves.size() == 0) { this->gameStatus = GameStatus::DRAW_STALEMATE; return; };
 	this->gameStatus = GameStatus::ONGOING;
 
 	if (this->halfmoves >= 100) { this->gameStatus = GameStatus::DRAW_FIFTY_MOVE_RULE; return; };
-	//TODO: 3-fold repetition draws, insufficient material
+	//TODO: insufficient material
 
 	/* //unsure about this
 	bool insufficiet = [&]() {

@@ -208,6 +208,7 @@ int main(int argc, char** argv)
 		SDL_SetRenderVSync(rend, 1);
 
 		auto state = GameState::newGame();
+		//state = GameState::fromFEN("rnb1kbnr/pppp1ppp/4p3/8/3Pq3/4B1P1/PPP2P1P/RN1QKBNR b KQkq - 1 4"); //queen blundering
 		//state = GameState::fromFEN("rnbqkbnr/pppp3p/4p3/5pp1/5P2/5NPB/PPPPP2P/RNBQK2R w KQkq - 0 5"); //castling test
 		//state = GameState::fromFEN("4k3/2p3P1/p2pb3/5p2/1P2p3/B1N3P1/P2P4/R3K2R w KQkq - 0 27");
 		//state = GameState::fromFEN("8/2p5/pk1p2R1/Q7/1P6/B1N1P1P1/R7/4K3 b KQkq - 2 35");
