@@ -96,6 +96,9 @@ SearchReturn GameState::findBestMove(const SearchParams& params, int currDepth)
 			if (TB_GET_PROMOTES(tb_ret) == TB_PROMOTES_ROOK) ret.bestMove.type = MoveType::MOVE_AND_PROMOTE_TO_ROOK;
 			if (TB_GET_PROMOTES(tb_ret) == TB_PROMOTES_BISHOP) ret.bestMove.type = MoveType::MOVE_AND_PROMOTE_TO_BISHOP;
 			if (TB_GET_PROMOTES(tb_ret) == TB_PROMOTES_KNIGHT) ret.bestMove.type = MoveType::MOVE_AND_PROMOTE_TO_KNIGHT;
+			//Putting magic value here to avoid garbage evaluation. It is not used anyway, so I guess it can act as "using tables mode" signal to the user in the GUI
+			//TODO: interrogate WDL and set up it to proper number?
+			ret.evaluation = 69.42;
 			return true;
 		}
 		return false;
