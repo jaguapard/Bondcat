@@ -173,7 +173,7 @@ void UCI()
 			ss.str(cmd.substr(3));
 			while (ss >> token) if (token == "depth") ss >> params.maxDepth;
 
-			SearchReturn mv = gameState.findBestMove(params, 1);
+			SearchReturn mv = gameState.findBestMove(params);
 
 			int evalScore = mv.evaluation * 100;
 			int reportedScore = gameState.whitesTurn ? evalScore : -evalScore;
@@ -335,7 +335,7 @@ int main(int argc, char** argv)
 
 			if (!state.whitesTurn)
 			{
-				SearchReturn search = state.findBestMove(params, 1);
+				SearchReturn search = state.findBestMove(params);
 				state.tryApplyMove(search.bestMove);
 				state.updateStatus();
 				std::cout << "Eval: " << search.evaluation << ", " << search.nodesSearched << " nodes searched in " << search.searchSeconds << " s (" << search.nodesPerSecond << " nps)\n";

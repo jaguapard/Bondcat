@@ -51,6 +51,11 @@ struct CompressedPosition
 };
 struct GameState
 {
+public:
+	SearchReturn findBestMove(SearchParams params);
+private:
+	SearchReturn findBestMoveInner(int remainingDepth, float alpha, float beta, const SearchParams& params);
+public:
 	std::array<Piece, 64> board;
 	bool blackCanQueensideCastle = false, blackCanKingsideCastle = false;
 	bool whiteCanQueensideCastle = false, whiteCanKingsideCastle = false;
@@ -61,7 +66,6 @@ struct GameState
 	std::optional<GameStatus> gameStatus;
 	std::map<CompressedPosition, int> seenPositions;
 
-	SearchReturn findBestMove(const SearchParams& params, int currDepth);
 	static GameState newGame();
 
 	void updateStatus();
