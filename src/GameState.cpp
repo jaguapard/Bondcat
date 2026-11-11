@@ -126,7 +126,7 @@ SearchReturn GameState::findBestMoveInner(int remainingDepth, float alpha, float
 			copy.tryApplyMove(move, true);
 			copy.updateStatus();
 
-			SearchReturn subsearch = copy.findBestMoveInner(remainingDepth - 1, -beta, -alpha, params);
+			SearchReturn subsearch = copy.findBestMoveInner(copy.gameStatus != GameStatus::ONGOING ? 0 : remainingDepth - 1, -beta, -alpha, params);
 			ret.nodesSearched += subsearch.nodesSearched;
 			if (-subsearch.evaluation > ret.evaluation) ret.bestMove = move;
 			ret.evaluation = std::max(-subsearch.evaluation, ret.evaluation);
