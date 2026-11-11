@@ -6,6 +6,9 @@
 #include <vector>
 #include <optional>
 #include <unordered_map>
+#include "globals.h"
+
+#include <tbprobe.h>
 
 #include <SDL3/SDL_image.h>
 
@@ -21,6 +24,9 @@
 
 #include <string_view>
 #include "BondcatException.h"
+
+int Globals::tablebase_max_pieces = INT32_MIN;
+std::mutex Globals::tablebase_mutex; 
 
 std::string StringifyEnum(MoveCheckStatus status)
 {
@@ -179,6 +185,10 @@ void UCI()
 }
 int main(int argc, char** argv)
 {
+	if (!tb_init("H:/Chess Endgame Tables/345_unified"))
+	{
+		std::cerr << "Failed to initialize tablebases. Tablebase probing will be disabled.\n";
+	}
 	try
 	{
 		std::cout << "Select mode: gui or uci: ";
@@ -337,4 +347,6 @@ int main(int argc, char** argv)
 		std::cerr << "std exception: " << e.what() << "\n";
 		return -1;
 	}
+
+	tb_free();
 }

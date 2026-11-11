@@ -17,6 +17,7 @@ public:
 	bool inBounds() const;
 	bool outOfBounds() const;
 	bool operator==(const Square& other) const;
+	int toIndex() const;
 
 	std::string toAlgebraic() const;
 

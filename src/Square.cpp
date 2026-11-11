@@ -35,6 +35,11 @@ bool Square::operator==(const Square& other) const
 	return x == other.x && y == other.y;
 }
 
+int Square::toIndex() const
+{
+	return y * 8 + x;
+}
+
 std::string Square::toAlgebraic() const
 {
 	std::string ret = "xx";

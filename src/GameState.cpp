@@ -3,6 +3,8 @@
 #include <assert.h>
 #include <unordered_map>
 #include <SDL3/SDL.h>
+#include <tbprobe.h>
+#include "globals.h"
 
 constexpr std::array<float, 64> knightMult = {
 	0.3, 0.4, 0.5, 0.6, 0.6, 0.5, 0.4, 0.3,
@@ -28,93 +30,162 @@ SearchReturn GameState::findBestMove(const SearchParams& params, int currDepth)
 	assert(currDepth >= 1);
 	SearchReturn ret;
 	uint64_t searchStartNs;
-	if (currDepth == 1)
-	{
-		searchStartNs = SDL_GetTicksNS();
-	}
+	//We need to pass stats to the search return, but only the root node (currDeptph == 1) should do that, thus, lamdas and filtering.
 
-	auto moves = getAllLegalMoves();
-	
-	if (whitesTurn) ret.evaluation = -INFINITY;
-	else ret.evaluation = INFINITY;
+	bool shouldReturn = false;
 
-	bool first = true;
-	Team currTeamsTurn = whitesTurn ? WHITE : BLACK;
-	for (auto& move : moves)
-	{
-		GameState copy = *this;
-		copy.tryApplyMove(move, true);
-		//if (currDepth == 3) __debugbreak();
-		copy.updateStatus();
-		//if (currDepth == 3 && !copy.gameStatus) __debugbreak();
-		++ret.nodesSearched;
-
-		float eval = 0;
-		//if (fullmoves < 15 && getPieceAt(move.srcX, move.srcY).type == PieceType::ROOK && getPieceAt(move.srcX, move.srcY).team == currTeamsTurn) eval += whitesTurn ? 4.5 : -4.5;
-
-		if (*copy.gameStatus == GameStatus::ONGOING)
+	bool endgameTableHit = [&]() {
+		//The root node sets up the search start time and checks for tablebase hits, if any.
+		if (currDepth == 1)
 		{
-			int i = -1;
-			if (currDepth < params.maxDepth)
+			searchStartNs = SDL_GetTicksNS();
+
+			int pieceCount = 0;
+			uint64_t whitePieces = 0, blackPieces = 0, kings = 0, queens = 0, rooks = 0, bishops = 0, knights = 0, pawns = 0;
+
+			for (auto& it : board)
 			{
-				SearchReturn childRet = copy.findBestMove(params, currDepth + 1);
-				ret.nodesSearched += childRet.nodesSearched;
-				eval = childRet.evaluation;
+				if (it.type != PieceType::EMPTY) ++pieceCount;
+				bool black = (it.team == Team::BLACK);
+
+				int sqInd = &it - &board[0];
+				uint64_t pieceMask = 1ull << (sqInd);
+				switch (it.type)
+				{
+				case PieceType::KING: kings |= pieceMask; break;
+				case PieceType::QUEEN: queens |= pieceMask; break;
+				case PieceType::ROOK: rooks |= pieceMask; break;
+				case PieceType::BISHOP: bishops |= pieceMask; break;
+				case PieceType::KNIGHT: knights |= pieceMask; break;
+				case PieceType::PAWN: pawns |= pieceMask; break;
+				default:
+					break;
+				}
+				if (black) blackPieces |= pieceMask;
+				else whitePieces |= pieceMask;
+			}
+			if (pieceCount > TB_LARGEST || whiteCanKingsideCastle || whiteCanQueensideCastle || blackCanKingsideCastle || blackCanQueensideCastle) return false;
+
+			unsigned int tb_ret;
+			{
+				std::lock_guard lck(Globals::tablebase_mutex);
+				tb_ret = tb_probe_root(whitePieces, blackPieces, kings, queens, rooks, bishops, knights, pawns, this->halfmoves, false, this->enpassant ? this->enpassant->toIndex() : 0, this->whitesTurn, nullptr);
+			}
+
+			if (tb_ret == TB_RESULT_FAILED) return false;
+			if (tb_ret == TB_RESULT_CHECKMATE)
+			{
+				ret.evaluation = this->whitesTurn ? -INFINITY : INFINITY;
+				return true;
+			}
+			if (tb_ret == TB_RESULT_STALEMATE)
+			{
+				ret.evaluation = 0;
+				return true;
+			}
+			//TB_GET_FROM, TB_GET_TO, TB_GET_PROMOTES, TB_GET_EP
+			int sqFrom = TB_GET_FROM(tb_ret);
+			int sqTo = TB_GET_TO(tb_ret);
+			Square from(sqFrom % 8, sqFrom / 8);
+			Square to(sqTo % 8, sqTo / 8);
+			ret.bestMove.from = from;
+			ret.bestMove.to = to;
+			ret.bestMove.type = MoveType::MOVE_TO_SQUARE;
+			if (TB_GET_PROMOTES(tb_ret) == TB_PROMOTES_QUEEN) ret.bestMove.type = MoveType::MOVE_AND_PROMOTE_TO_QUEEN;
+			if (TB_GET_PROMOTES(tb_ret) == TB_PROMOTES_ROOK) ret.bestMove.type = MoveType::MOVE_AND_PROMOTE_TO_ROOK;
+			if (TB_GET_PROMOTES(tb_ret) == TB_PROMOTES_BISHOP) ret.bestMove.type = MoveType::MOVE_AND_PROMOTE_TO_BISHOP;
+			if (TB_GET_PROMOTES(tb_ret) == TB_PROMOTES_KNIGHT) ret.bestMove.type = MoveType::MOVE_AND_PROMOTE_TO_KNIGHT;
+			return true;
+		}
+		return false;
+	}();
+	
+	if (!endgameTableHit)
+	{
+		//if tablebase did not hit, we need to do a search
+		auto moves = getAllLegalMoves();
+
+		if (whitesTurn) ret.evaluation = -INFINITY;
+		else ret.evaluation = INFINITY;
+
+		bool first = true;
+		Team currTeamsTurn = whitesTurn ? WHITE : BLACK;
+		for (auto& move : moves)
+		{
+			GameState copy = *this;
+			copy.tryApplyMove(move, true);
+			//if (currDepth == 3) __debugbreak();
+			copy.updateStatus();
+			//if (currDepth == 3 && !copy.gameStatus) __debugbreak();
+			++ret.nodesSearched;
+
+			float eval = 0;
+			//if (fullmoves < 15 && getPieceAt(move.srcX, move.srcY).type == PieceType::ROOK && getPieceAt(move.srcX, move.srcY).team == currTeamsTurn) eval += whitesTurn ? 4.5 : -4.5;
+
+			if (*copy.gameStatus == GameStatus::ONGOING)
+			{
+				int i = -1;
+				if (currDepth < params.maxDepth)
+				{
+					SearchReturn childRet = copy.findBestMove(params, currDepth + 1);
+					ret.nodesSearched += childRet.nodesSearched;
+					eval = childRet.evaluation;
+				}
+				else
+				{
+					float whiteScore = 0, blackScore = 0;
+
+					/*
+					if (copy.whiteCanKingsideCastle) whiteScore += 0.5;
+					else if (copy.whiteCanQueensideCastle) whiteScore += 0.33;
+					if (copy.blackCanKingsideCastle) blackScore += 0.5;
+					else if (copy.blackCanQueensideCastle) blackScore += 0.33;*/
+
+					float mobilityBonus = moves.size() * 0.02;
+					if (whitesTurn) whiteScore += mobilityBonus;
+					else blackScore += mobilityBonus;
+					for (auto& it : copy.board)
+					{
+						++i;
+						if (it.type == PieceType::EMPTY) continue;
+						float& score = (it.team == Team::WHITE) ? whiteScore : blackScore;
+						if (it.type == PieceType::PAWN) score += 1;
+						if (it.type == PieceType::KNIGHT) score += 3; //* knightMult[i];
+						if (it.type == PieceType::BISHOP) score += 3.1;// * bishopMult[i];
+						if (it.type == PieceType::ROOK) score += 5;
+						if (it.type == PieceType::QUEEN) score += 9;
+					}
+					eval += whiteScore - blackScore;
+				}
 			}
 			else
 			{
-				float whiteScore = 0, blackScore = 0;
-
-				/*
-				if (copy.whiteCanKingsideCastle) whiteScore += 0.5;
-				else if (copy.whiteCanQueensideCastle) whiteScore += 0.33;
-				if (copy.blackCanKingsideCastle) blackScore += 0.5;
-				else if (copy.blackCanQueensideCastle) blackScore += 0.33;*/
-
-				float mobilityBonus = moves.size() * 0.02;
-				if (whitesTurn) whiteScore += mobilityBonus;
-				else blackScore += mobilityBonus;
-				for (auto& it : copy.board)
+				switch (*copy.gameStatus)
 				{
-					++i;
-					if (it.type == PieceType::EMPTY) continue;
-					float& score = (it.team == Team::WHITE) ? whiteScore : blackScore;
-					if (it.type == PieceType::PAWN) score += 1;
-					if (it.type == PieceType::KNIGHT) score += 3; //* knightMult[i];
-					if (it.type == PieceType::BISHOP) score += 3.1;// * bishopMult[i];
-					if (it.type == PieceType::ROOK) score += 5;
-					if (it.type == PieceType::QUEEN) score += 9;
+				case GameStatus::WHITE_WON_BY_TIME:
+				case GameStatus::WHITE_WON_BY_CHECKMATE:
+				case GameStatus::WHITE_WON_ENEMY_RESIGNED:
+					eval = INFINITY; break;
+				case GameStatus::BLACK_WON_BY_TIME:
+				case GameStatus::BLACK_WON_BY_CHECKMATE:
+				case GameStatus::BLACK_WON_ENEMY_RESIGNED:
+					eval = -INFINITY; break;
+				case GameStatus::DRAW_ACCEPTED:
+				case GameStatus::DRAW_STALEMATE:
+				case GameStatus::DRAW_THREEFOLD_REPETITION:
+				case GameStatus::DRAW_INSUFFICIENT_MATERIAL:
+					eval = 0; break;
+				default:
+					break;
 				}
-				eval += whiteScore - blackScore;
 			}
-		}
-		else
-		{
-			switch (*copy.gameStatus)
+
+			if (first || (whitesTurn && eval > ret.evaluation) || (!whitesTurn && eval < ret.evaluation))
 			{
-			case GameStatus::WHITE_WON_BY_TIME:
-			case GameStatus::WHITE_WON_BY_CHECKMATE:
-			case GameStatus::WHITE_WON_ENEMY_RESIGNED:
-				eval = INFINITY; break;
-			case GameStatus::BLACK_WON_BY_TIME:
-			case GameStatus::BLACK_WON_BY_CHECKMATE:
-			case GameStatus::BLACK_WON_ENEMY_RESIGNED:
-				eval = -INFINITY; break;
-			case GameStatus::DRAW_ACCEPTED:
-			case GameStatus::DRAW_STALEMATE:
-			case GameStatus::DRAW_THREEFOLD_REPETITION:
-			case GameStatus::DRAW_INSUFFICIENT_MATERIAL:
-				eval = 0; break;
-			default:
-				break;
+				ret.evaluation = eval;
+				ret.bestMove = move;
+				first = false;
 			}
-		}
-		
-		if (first || (whitesTurn && eval > ret.evaluation) || (!whitesTurn && eval < ret.evaluation))
-		{
-			ret.evaluation = eval;
-			ret.bestMove = move;
-			first = false;
 		}
 	}
 
@@ -221,6 +292,7 @@ std::vector<Move> GameState::getAllLegalMoves()
 }
 std::vector<Move> GameState::getAllLegalMovesForPieceAt(Square sq)
 {
+	if (!sq.inBounds()) return {};
 	std::vector<Move> ret;
 
 	Piece& movingPiece = getPieceAt(sq);

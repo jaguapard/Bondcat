@@ -34,7 +34,7 @@ struct SearchParams
 struct SearchReturn
 {
 	Move bestMove;
-	float evaluation;
+	float evaluation = 0;
 	std::optional<int> mateIn;
 	
 	uint64_t nodesSearched = 0;
