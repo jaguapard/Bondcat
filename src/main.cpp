@@ -6,6 +6,9 @@
 #include <vector>
 #include <optional>
 #include <unordered_map>
+#include "globals.h"
+
+#include <tbprobe.h>
 
 #include <SDL3/SDL_image.h>
 
@@ -20,6 +23,10 @@
 #undef main
 
 #include <string_view>
+#include "BondcatException.h"
+
+int Globals::tablebase_max_pieces = INT32_MIN;
+std::mutex Globals::tablebase_mutex; 
 
 std::string StringifyEnum(MoveCheckStatus status)
 {
@@ -64,6 +71,7 @@ std::string StringifyEnum(MoveCheckStatus status)
 	case PAWN_GENERAL_MOVEMENT_ILLEGAL: return "Pawn movement fits none of these rules prior to pathing check: one step forward, two steps forward for unmoved, diagonal capture, diagonal en passant capture.";
 
 	case KING_TOO_FAR: return "A king can only move one square in any direction, except when castling.";
+	case KING_RUNS_INTO_ANOTHER_KING: return "A king can't move into squares attacked by another king.";
 	case MOVING_SLIDING_PATHS_EXIST_BUT_NONE_MATCH: return "Sliding piece path exists but none match (this usually means that chosen square is on the right path, but obstructed).";
 	case MOVING_TEAMS_KING_IN_CHECK: return "Move puts or leaves moving team's king in check.";
 	}
@@ -94,7 +102,7 @@ std::string StringifyEnum(GameStatus status)
 void UCI()
 {
 	GameState gameState;
-	std::string idString = "id name Bondfish\nid author jaguapard\nuciok\n";
+	std::string idString = "id name Bondcat v0.2: Ant\nid author jaguapard\nuciok\n";
 	std::cout << idString;
 	while (true)
 	{
@@ -113,7 +121,7 @@ void UCI()
 			std::stringstream ss;
 			ss.str(cmd.substr(9));
 			std::string acc, tmp;
-			
+
 			while (ss >> tmp)
 			{
 				if (tmp == "moves") break;
@@ -122,27 +130,16 @@ void UCI()
 
 			if (acc.substr(0, 8) == "startpos") gameState.reset();
 			else if (acc.substr(0, 3) == "fen") gameState = GameState::fromFEN(acc);
-			
+
 			std::string moveStr;
 			while (ss >> moveStr)
 			{
 				std::string src = moveStr.substr(0, 2);
 				std::string dst = moveStr.substr(2, 2);
 
-				int x1, x2, y1, y2;
-				gameState.rankAndFileToXY(src.c_str(), x1, y1);
-				gameState.rankAndFileToXY(dst.c_str(), x2, y2);
-				int dx = x2 - x1, dy = y2 - y1;
-
-				Move move;
-				move.srcX = x1;
-				move.srcY = y1;
-				move.dstX = x2;
-				move.dstY = y2;
-				move.type = MoveType::MOVE_TO_SQUARE;
-
-				Piece& srcPiece = gameState.getPieceAt(x1, y1);
-				Piece& dstPiece = gameState.getPieceAt(x2, y2);
+				Move move(Square(src), Square(dst), MoveType::MOVE_TO_SQUARE);
+				Piece& srcPiece = gameState.getPieceAt(move.from);
+				Piece& dstPiece = gameState.getPieceAt(move.to);
 				if (moveStr.length() > 4)
 				{
 					if (moveStr[4] == 'q') move.type = MoveType::MOVE_AND_PROMOTE_TO_QUEEN;
@@ -151,17 +148,17 @@ void UCI()
 					if (moveStr[4] == 'b') move.type = MoveType::MOVE_AND_PROMOTE_TO_BISHOP;
 				}
 
-				if (srcPiece.type == PieceType::KING && abs(dx) > 1)
+				if (srcPiece.type == PieceType::KING && abs(move.from.x - move.to.x) > 1)
 				{
 					if (moveStr == "e1g1") move.type = MoveType::WHITE_KINGSIDE_CASTLE;
 					else if (moveStr == "e1c1") move.type = MoveType::WHITE_QUEENSIDE_CASTLE;
 					else if (moveStr == "e8g8") move.type = MoveType::BLACK_KINGSIDE_CASTLE;
 					else if (moveStr == "e8c8") move.type = MoveType::BLACK_QUEENSIDE_CASTLE;
-					else throw std::runtime_error("UCI wrong castling: " + moveStr);
+					else throw BondcatException("UCI wrong castling: " + moveStr);
 				}
 
 				auto [applied, status] = gameState.tryApplyMove(move);
-				if (!applied) throw std::runtime_error("UCI illegal move: " + StringifyEnum(status));
+				if (!applied) throw BondcatException("UCI illegal move: " + StringifyEnum(status));
 				gameState.updateStatus();
 			}
 		}
@@ -178,171 +175,186 @@ void UCI()
 
 			SearchReturn mv = gameState.findBestMove(params, 1);
 
-			std::string bestMoveStr;
-			if (mv.bestMove.type == MoveType::WHITE_KINGSIDE_CASTLE) bestMoveStr = "e1g1";
-			else if (mv.bestMove.type == MoveType::BLACK_KINGSIDE_CASTLE) bestMoveStr= "e8g8";
-			else if (mv.bestMove.type == MoveType::WHITE_QUEENSIDE_CASTLE) bestMoveStr = "e1c1";
-			else if (mv.bestMove.type == MoveType::BLACK_QUEENSIDE_CASTLE) bestMoveStr = "e8c8";
-			else
-			{
-				std::string algebraic = gameState.xyToAlgebraic(mv.bestMove.srcX, mv.bestMove.srcY) + gameState.xyToAlgebraic(mv.bestMove.dstX, mv.bestMove.dstY);
-				if (mv.bestMove.type == MoveType::MOVE_AND_PROMOTE_TO_KNIGHT) algebraic += 'n';
-				else if (mv.bestMove.type == MoveType::MOVE_AND_PROMOTE_TO_ROOK) algebraic += 'r';
-				else if (mv.bestMove.type == MoveType::MOVE_AND_PROMOTE_TO_BISHOP) algebraic += 'b';
-				else if (mv.bestMove.type == MoveType::MOVE_AND_PROMOTE_TO_QUEEN) algebraic += 'q';
-				bestMoveStr = algebraic;
-			}
-			
-			std::cout << "info score cp " << int(mv.evaluation * 100) << "\n";
-			std::cout << "bestmove " << bestMoveStr << "\n";
+			int evalScore = mv.evaluation * 100;
+			int reportedScore = gameState.whitesTurn ? evalScore : -evalScore;
+			std::cout << "info score cp " << reportedScore << " nodes " << mv.nodesSearched << " nps " << uint64_t(mv.nodesPerSecond) << "\n";
+			std::cout << "bestmove " << mv.bestMove.toUCI() << "\n";
 		}
 		if (cmd == "quit") return;
 	}
 }
 int main(int argc, char** argv)
 {
-	std::cout << "Select mode: gui or uci: ";
-	std::string line;
-	std::getline(std::cin, line);
-
-	if (line == "uci")
+	bool tablebaseLoaded = [&]()
 	{
-		UCI();
-		return 0;
-	}
-
-	SDL_Window* wnd;
-	SDL_Renderer* rend;
-	int w = 1920, h = 1080;
-	SDL_CreateWindowAndRenderer("Chess engine", w, h, 0, &wnd, &rend);
-	SDL_SetRenderVSync(rend, 1);
-
-	//auto state = GameState::newGame();
-	//auto state = GameState::fromFEN("rnbqkbnr/pppp3p/4p3/5pp1/5P2/5NPB/PPPPP2P/RNBQK2R w KQkq - 0 5"); //castling test
-	//auto state = GameState::fromFEN("4k3/2p3P1/p2pb3/5p2/1P2p3/B1N3P1/P2P4/R3K2R w KQkq - 0 27");
-	//auto state = GameState::fromFEN("8/2p5/pk1p2R1/Q7/1P6/B1N1P1P1/R7/4K3 b KQkq - 2 35");
-	//auto state = GameState::fromFEN("1nbk2nr/prppqppp/8/1p1N4/3PP2P/P4P2/1P1Q2P1/2KR1BNR b kq - 4 14");
-	auto state = GameState::fromFEN("1k4n1/6PP/4R3/1p6/1P6/8/P1K5/8 b kq - 0 56");
+		const char* tableBasePath = getenv("BONDCAT_ENDGAME_TABLES_PATH");
+		if (!tableBasePath) { std::cerr << "BONDCAT_ENDGAME_TABLES_PATH environment variable not found" << "\n"; return false; }
+		if (!tb_init(tableBasePath) || TB_LARGEST < 3) return false;
+		return true;
+	}();
+	if (tablebaseLoaded) std::cout << "Successfully loaded tablebases for up to " << TB_LARGEST << " pieces.\n";
+	else std::cerr << "Failed to initialize tablebases. Tablebase probing will be disabled.\n";
 	
-	float minDim = std::min(w, h);
-	BoardView boardView({ 0,0,minDim,minDim }, 8, 8);
-	std::vector<PieceTexture> pieceTextures;
+	try
 	{
-		std::pair<PieceType,std::string> paths[] = {
-			{ PieceType::PAWN, "pawn" },
-			{ PieceType::ROOK, "rook" },
-			{ PieceType::KING, "king" },
-			{ PieceType::QUEEN, "queen" },
-			{ PieceType::BISHOP, "bishop" },
-			{ PieceType::KNIGHT, "knight" },
-		};
-		for (auto& it : paths)
+		std::cout << "Select mode: gui or uci: ";
+		std::string line;
+		std::getline(std::cin, line);
+
+		if (line == "uci")
 		{
-			std::string pth_w = "textures/white_" + it.second + ".png";
-			std::string pth_b = "textures/black_" + it.second + ".png";
-			SDL_Surface* s1 = IMG_Load(pth_w.c_str());
-			SDL_Surface* s2 = IMG_Load(pth_b.c_str());
-			
-			PieceTexture t;
-			t.type = it.first;
-			t.team = Team::WHITE;
-			t.tex = SDL_CreateTextureFromSurface(rend,s1);
-			t.w = s1->w;
-			t.h = s1->h;
-			pieceTextures.emplace_back(t);
-			t.team = Team::BLACK;
-			t.tex = SDL_CreateTextureFromSurface(rend,s2);
-			t.w = s2->w;
-			t.h = s2->h;
-			pieceTextures.emplace_back(t);
+			UCI();
+			return 0;
 		}
-	}
 
-	BoardDrawCtx boardDrawCtx;
-	boardDrawCtx.gameState = &state;
-	boardDrawCtx.textures = &pieceTextures;
-	SearchParams params;
-	params.maxDepth = 3;
-	while (true)
-	{
-		SDL_Event event;
-		while (SDL_PollEvent(&event))
+		SDL_Window* wnd;
+		SDL_Renderer* rend;
+		int w = 1920, h = 1080;
+		SDL_CreateWindowAndRenderer("Chess engine", w, h, 0, &wnd, &rend);
+		SDL_SetRenderVSync(rend, 1);
+
+		auto state = GameState::newGame();
+		//state = GameState::fromFEN("rnb1kbnr/pppp1ppp/4p3/8/3Pq3/4B1P1/PPP2P1P/RN1QKBNR b KQkq - 1 4"); //queen blundering
+		//state = GameState::fromFEN("rnbqkbnr/pppp3p/4p3/5pp1/5P2/5NPB/PPPPP2P/RNBQK2R w KQkq - 0 5"); //castling test
+		//state = GameState::fromFEN("4k3/2p3P1/p2pb3/5p2/1P2p3/B1N3P1/P2P4/R3K2R w KQkq - 0 27");
+		//state = GameState::fromFEN("8/2p5/pk1p2R1/Q7/1P6/B1N1P1P1/R7/4K3 b KQkq - 2 35");
+		//state = GameState::fromFEN("1nbk2nr/prppqppp/8/1p1N4/3PP2P/P4P2/1P1Q2P1/2KR1BNR b kq - 4 14");
+		//state = GameState::fromFEN("1k4n1/6PP/4R3/1p6/1P6/8/P1K5/8 b kq - 0 56");
+		//state = GameState::fromFEN("8/8/8/2K2k2/8/8/8/8 w - - 0 1"); //king vs king test
+		//state = GameState::fromFEN("8/8/1k6/5N2/1r6/6B1/5K2/8 b - - 0 1"); //5-piece endgame test
+
+		float minDim = std::min(w, h);
+		BoardView boardView({ 0,0,minDim,minDim }, 8, 8);
+		std::vector<PieceTexture> pieceTextures;
 		{
-			if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == 1 && state.whitesTurn)
+			std::pair<PieceType, std::string> paths[] = {
+				{ PieceType::PAWN, "pawn" },
+				{ PieceType::ROOK, "rook" },
+				{ PieceType::KING, "king" },
+				{ PieceType::QUEEN, "queen" },
+				{ PieceType::BISHOP, "bishop" },
+				{ PieceType::KNIGHT, "knight" },
+			};
+			for (auto& it : paths)
 			{
-				SDL_Point p;
-				p.x = event.motion.x;
-				p.y = event.motion.y;
-				auto clickedAtSquare = boardView.squareAt(p);
-				if (!boardDrawCtx.activeSquare)
-				{
-					boardDrawCtx.activeSquare = clickedAtSquare;
-					boardDrawCtx.circlesAt.clear();
-					for (auto& move : state.getAllLegalMovesForPieceAt(boardDrawCtx.activeSquare->x, boardDrawCtx.activeSquare->y))
-					{
-						boardDrawCtx.circlesAt.push_back({ move.dstX, move.dstY });
-					}
-				}
-				else
-				{
-					Move m;
-					m.type = MoveType::MOVE_TO_SQUARE;
-					m.srcX = boardDrawCtx.activeSquare->x;
-					m.srcY = boardDrawCtx.activeSquare->y;
-					m.dstX = clickedAtSquare.x;
-					m.dstY = clickedAtSquare.y;
-					
-					Piece& movingPiece = state.getPieceAt(m.srcX, m.srcY);
-					Piece& targetPiece = state.getPieceAt(m.dstX, m.dstY);
-					bool onLastRank = m.dstY == (state.whitesTurn ? 0 : 7);
-					bool isPawn = movingPiece.type == PieceType::PAWN;
-					if (isPawn && onLastRank) {
-						m.type = MoveType::MOVE_AND_PROMOTE_TO_QUEEN;
-					}
+				std::string pth_w = "textures/white_" + it.second + ".png";
+				std::string pth_b = "textures/black_" + it.second + ".png";
+				SDL_Surface* s1 = IMG_Load(pth_w.c_str());
+				SDL_Surface* s2 = IMG_Load(pth_b.c_str());
 
-					using enum MoveType;
-					std::pair<bool, MoveCheckStatus> application;
-					if ((movingPiece.type == PieceType::KING || movingPiece.type == PieceType::ROOK) && (movingPiece.team == targetPiece.team))
-					{
-						Move copy = m;
-						std::array<MoveType, 2> castles = { BLACK_KINGSIDE_CASTLE, BLACK_QUEENSIDE_CASTLE };
-						if (movingPiece.team == Team::WHITE) castles = { WHITE_KINGSIDE_CASTLE, WHITE_QUEENSIDE_CASTLE };
-						for (auto ct : castles)
-						{
-							m.type = ct;
-							application = state.tryApplyMove(m, false);
-							if (application.first) break;
-						}
-						m = copy;
-					}
-
-					if (!application.first) application = state.tryApplyMove(m, false);
-					if (!application.first) std::cout << StringifyEnum(application.second) << "\n";
-					else std::cout << state.toFEN() << "\n";
-
-					boardDrawCtx.activeSquare = std::nullopt;
-					boardDrawCtx.circlesAt.clear();
-					state.updateStatus();
-					if (state.status != GameStatus::ONGOING) std::cout << "GAME OVER:\n" << StringifyEnum(state.status) << "\n";
-				}
+				PieceTexture t;
+				t.type = it.first;
+				t.team = Team::WHITE;
+				t.tex = SDL_CreateTextureFromSurface(rend, s1);
+				t.w = s1->w;
+				t.h = s1->h;
+				pieceTextures.emplace_back(t);
+				t.team = Team::BLACK;
+				t.tex = SDL_CreateTextureFromSurface(rend, s2);
+				t.w = s2->w;
+				t.h = s2->h;
+				pieceTextures.emplace_back(t);
 			}
 		}
 
-		SDL_SetRenderDrawColor(rend, 0, 0, 0, 255);
-		SDL_RenderClear(rend);
-		
-		boardView.draw(rend, boardDrawCtx);
-		SDL_RenderPresent(rend);
-
-		if (!state.whitesTurn)
+		BoardDrawCtx boardDrawCtx;
+		boardDrawCtx.gameState = &state;
+		boardDrawCtx.textures = &pieceTextures;
+		SearchParams params;
+		params.maxDepth = 3;
+		while (true)
 		{
-			SearchReturn search = state.findBestMove(params, 1);
-			state.tryApplyMove(search.bestMove);
-			state.updateStatus();
-			std::cout << "Eval: " << search.evaluation << "\n";
+			SDL_Event event;
+			while (SDL_PollEvent(&event))
+			{
+				if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == 1 && state.whitesTurn)
+				{
+					SDL_Point p;
+					p.x = event.motion.x;
+					p.y = event.motion.y;
+					auto clickedAtSquare = boardView.squareAt(p);
+					if (!boardDrawCtx.activeSquare)
+					{
+						boardDrawCtx.activeSquare = clickedAtSquare;
+						boardDrawCtx.circlesAt.clear();
+						for (auto& move : state.getAllLegalMovesForPieceAt(*boardDrawCtx.activeSquare))
+						{
+							boardDrawCtx.circlesAt.push_back({ move.to.x, move.to.y });
+						}
+					}
+					else
+					{
+						Move m;
+						m.type = MoveType::MOVE_TO_SQUARE;
+						m.from.x = boardDrawCtx.activeSquare->x;
+						m.from.y = boardDrawCtx.activeSquare->y;
+						m.to.x = clickedAtSquare.x;
+						m.to.y = clickedAtSquare.y;
+
+						Piece& movingPiece = state.getPieceAt(m.from);
+						Piece& targetPiece = state.getPieceAt(m.to);
+						bool onLastRank = m.to.y == (state.whitesTurn ? 0 : 7);
+						bool isPawn = movingPiece.type == PieceType::PAWN;
+						if (isPawn && onLastRank) {
+							m.type = MoveType::MOVE_AND_PROMOTE_TO_QUEEN;
+						}
+
+						using enum MoveType;
+						std::pair<bool, MoveCheckStatus> application;
+						if ((movingPiece.type == PieceType::KING || movingPiece.type == PieceType::ROOK) && (movingPiece.team == targetPiece.team))
+						{
+							Move copy = m;
+							std::array<MoveType, 2> castles = { BLACK_KINGSIDE_CASTLE, BLACK_QUEENSIDE_CASTLE };
+							if (movingPiece.team == Team::WHITE) castles = { WHITE_KINGSIDE_CASTLE, WHITE_QUEENSIDE_CASTLE };
+							for (auto ct : castles)
+							{
+								m.type = ct;
+								application = state.tryApplyMove(m, false);
+								if (application.first) break;
+							}
+							m = copy;
+						}
+
+						if (!application.first) application = state.tryApplyMove(m, false);
+						if (!application.first) std::cout << StringifyEnum(application.second) << "\n";
+						else std::cout << state.toFEN() << "\n";
+
+						boardDrawCtx.activeSquare = std::nullopt;
+						boardDrawCtx.circlesAt.clear();
+						state.updateStatus();
+						if (state.gameStatus != GameStatus::ONGOING) std::cout << "GAME OVER: " << StringifyEnum(*state.gameStatus) << "\n";
+					}
+				}
+			}
+
+			SDL_SetRenderDrawColor(rend, 0, 0, 0, 255);
+			SDL_RenderClear(rend);
+
+			boardView.draw(rend, boardDrawCtx);
+			SDL_RenderPresent(rend);
+
+			if (!state.whitesTurn)
+			{
+				SearchReturn search = state.findBestMove(params, 1);
+				state.tryApplyMove(search.bestMove);
+				state.updateStatus();
+				std::cout << "Eval: " << search.evaluation << ", " << search.nodesSearched << " nodes searched in " << search.searchSeconds << " s (" << search.nodesPerSecond << " nps)\n";
+			}
 		}
+
+		//auto legal = state.getAllLegalMoves();
+		return 0;
+	}
+	catch (const BondcatException& e)
+	{
+		std::cerr << e.asString() << "\n";
+		return -1;
+	}
+	catch (const std::exception& e)
+	{
+		std::cerr << "std exception: " << e.what() << "\n";
+		return -1;
 	}
 
-	//auto legal = state.getAllLegalMoves();
-	return 0;
+	tb_free();
 }

@@ -7,6 +7,8 @@
 #include <optional>
 #include <assert.h>
 #include <chrono>
+#include <map>
+
 /*
 struct LegalMoves
 {
@@ -32,8 +34,20 @@ struct SearchParams
 struct SearchReturn
 {
 	Move bestMove;
-	float evaluation;
+	float evaluation = 0;
 	std::optional<int> mateIn;
+	
+	uint64_t nodesSearched = 0;
+	double searchSeconds, nodesPerSecond;
+};
+
+struct CompressedPosition
+{
+	CompressedPosition() = default;
+
+	std::array<uint64_t, 4> bits;
+	CompressedPosition(const std::array<Piece, 64>& board);
+	bool operator<(const CompressedPosition& other) const;
 };
 struct GameState
 {
@@ -41,9 +55,11 @@ struct GameState
 	bool blackCanQueensideCastle = false, blackCanKingsideCastle = false;
 	bool whiteCanQueensideCastle = false, whiteCanKingsideCastle = false;
 	bool whitesTurn;
-	int halfmoves, fullmoves, enpassantX = -1, enpassantY = -1;
-	GameStatus status;
-	bool statusUpToDate = false;
+	int halfmoves, fullmoves;
+	std::optional<Square> enpassant;
+
+	std::optional<GameStatus> gameStatus;
+	std::map<CompressedPosition, int> seenPositions;
 
 	SearchReturn findBestMove(const SearchParams& params, int currDepth);
 	static GameState newGame();
@@ -54,11 +70,11 @@ struct GameState
 	void reset();
 
 	std::vector<Move> getAllLegalMoves();
-	std::vector<Move> getAllLegalMovesForPieceAt(int x, int y);
+	std::vector<Move> getAllLegalMovesForPieceAt(Square sq);
 
-	Piece& getPieceAt(int x, int y);
+	Piece& getPieceAt(Square s);
 	//const Piece& getPieceAt(int x, int y) const;
-	Piece& getPieceAt(const char* algebraic);
+	//Piece& getPieceAt(const char* algebraic);
 	//const Piece& getPieceAt(const char* algebraic) const;
 
 	static GameState fromFEN(const std::string& fenStr);

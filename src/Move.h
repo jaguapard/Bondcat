@@ -2,6 +2,7 @@
 #include "enums.h"
 #include <optional>
 #include "Piece.h"
+#include "Square.h"
 
 enum class MoveType
 {
@@ -19,10 +20,16 @@ enum class MoveType
 //Describes a move attempted by the player. type describes the type of the move, square indices are ignored for castling (use hardcoded ones)
 struct Move
 {
-	int srcX, srcY, dstX, dstY;
+	Move() = default;
+	Move(Square from, Square to, MoveType type);
+
+	Square from, to;
 	MoveType type;
 
 	//Returns a promotion target stored or nullopt if there is none. Does not check if it is legal
 	std::optional<PieceType> getPromotionTarget() const;
 	bool isCastlingMove() const;
+
+	std::string toUCI() const;
+	static Move fromUCI(const std::string& uci, bool isCastling);
 };

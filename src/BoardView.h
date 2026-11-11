@@ -1,6 +1,7 @@
 #pragma once
 #include "GameState.h"
 #include <SDL3/SDL.h>
+#include "Square.h"
 
 struct PieceTexture
 {
@@ -12,8 +13,8 @@ struct PieceTexture
 
 struct BoardDrawCtx
 {
-	std::optional<SDL_Point> activeSquare;
-	std::vector<SDL_Point> circlesAt;
+	std::optional<Square> activeSquare;
+	std::vector<Square> circlesAt;
 	const std::vector<PieceTexture>* textures = nullptr;
 	GameState* gameState = nullptr;
 };
@@ -21,7 +22,7 @@ class BoardView
 {
 public:
 	BoardView(SDL_FRect boardRenderRect, int divisionsW, int divisionsH);
-	SDL_Point squareAt(SDL_Point p);
+	Square squareAt(SDL_Point p);
 	void draw(SDL_Renderer* rend, BoardDrawCtx& ctx);
 private:
 	SDL_FRect renderRect;
