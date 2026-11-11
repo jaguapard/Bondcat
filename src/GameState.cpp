@@ -43,14 +43,15 @@ SearchReturn GameState::findBestMove(const SearchParams& params, int currDepth)
 			int pieceCount = 0;
 			uint64_t whitePieces = 0, blackPieces = 0, kings = 0, queens = 0, rooks = 0, bishops = 0, knights = 0, pawns = 0;
 
-			for (auto& it : board)
+			for (int i = 0; i < 64; ++i)
 			{
-				if (it.type != PieceType::EMPTY) ++pieceCount;
-				bool black = (it.team == Team::BLACK);
+				if (board[i].type == PieceType::EMPTY) continue;
+				++pieceCount;
+				bool black = (board[i].team == Team::BLACK);
+				bool white = (board[i].team == Team::WHITE);
 
-				int sqInd = &it - &board[0];
-				uint64_t pieceMask = 1ull << (sqInd);
-				switch (it.type)
+				uint64_t pieceMask = 1ull << i;
+				switch (board[i].type)
 				{
 				case PieceType::KING: kings |= pieceMask; break;
 				case PieceType::QUEEN: queens |= pieceMask; break;
@@ -62,7 +63,7 @@ SearchReturn GameState::findBestMove(const SearchParams& params, int currDepth)
 					break;
 				}
 				if (black) blackPieces |= pieceMask;
-				else whitePieces |= pieceMask;
+				if (white) whitePieces |= pieceMask;
 			}
 			if (pieceCount > TB_LARGEST || whiteCanKingsideCastle || whiteCanQueensideCastle || blackCanKingsideCastle || blackCanQueensideCastle) return false;
 
