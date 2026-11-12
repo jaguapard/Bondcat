@@ -1,6 +1,7 @@
 <Solution>
   <Configurations>
     <BuildType Name="Debug" />
+    <BuildType Name="RelClang" />
     <BuildType Name="Release" />
     <BuildType Name="RelTournament" />
     <Platform Name="x64" />
