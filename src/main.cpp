@@ -295,7 +295,7 @@ int main(int argc, char** argv)
 		boardDrawCtx.gameState = &state;
 		boardDrawCtx.textures = &pieceTextures;
 		SearchParams params;
-		params.maxDepth = 3;
+		params.maxDepth = 4;
 		while (true)
 		{
 			SDL_Event event;

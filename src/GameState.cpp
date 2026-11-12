@@ -141,15 +141,15 @@ SearchReturn GameState::findBestMoveInner(int remainingDepth, float alpha, float
 		float neutralEval = [&]() {
 			switch (*this->gameStatus)
 			{
-			case GameStatus::WHITE_WON_BY_TIME:
+			//case GameStatus::WHITE_WON_BY_TIME:
 			case GameStatus::WHITE_WON_BY_CHECKMATE:
-			case GameStatus::WHITE_WON_ENEMY_RESIGNED:
+			//case GameStatus::WHITE_WON_ENEMY_RESIGNED:
 				return INFINITY;
-			case GameStatus::BLACK_WON_BY_TIME:
+			//case GameStatus::BLACK_WON_BY_TIME:
 			case GameStatus::BLACK_WON_BY_CHECKMATE:
-			case GameStatus::BLACK_WON_ENEMY_RESIGNED:
+			//case GameStatus::BLACK_WON_ENEMY_RESIGNED:
 				return -INFINITY;
-			case GameStatus::DRAW_ACCEPTED:
+			//case GameStatus::DRAW_ACCEPTED:
 			case GameStatus::DRAW_STALEMATE:
 			case GameStatus::DRAW_THREEFOLD_REPETITION:
 			case GameStatus::DRAW_INSUFFICIENT_MATERIAL:
