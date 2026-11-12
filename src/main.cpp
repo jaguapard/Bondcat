@@ -99,7 +99,7 @@ std::string StringifyEnum(GameStatus status)
 void UCI()
 {
 	GameState gameState;
-	std::string idString = "id name Bondcat v0.2: Ant\nid author jaguapard\nuciok\n";
+	std::string idString = "id name Bondcat v0.3: Bee\nid author jaguapard\nuciok\n";
 	std::cout << idString;
 	while (true)
 	{
