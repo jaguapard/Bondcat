@@ -296,9 +296,22 @@ std::vector<Move> GameState::getAllLegalMovesForPieceAt(Square sq)
 	std::vector<Move> ret;
 
 	Piece& movingPiece = getPieceAt(sq);
-	for (Square toSq : Square::all_inBounds())
+	int ind = sq.toIndex();
+	const auto& cand = [&]() {
+		switch (movingPiece.type)
+		{
+		case PieceType::PAWN: return Globals::pawnAttacks[ind];
+		case PieceType::KNIGHT: return Globals::knightAttacks[ind];
+		case PieceType::BISHOP: return Globals::bishopAttacks[ind];
+		case PieceType::ROOK: return Globals::rookAttacks[ind];
+		case PieceType::QUEEN: return Globals::queenAttacks[ind];
+		case PieceType::KING: return Globals::kingAttacks[ind];
+		default: return std::vector<Move>{};
+		}
+	}();
+
+	for (auto move : cand)
 	{
-		Move move(sq, toSq, MoveType::MOVE_TO_SQUARE);
 		if (isLegalMove(move) == MoveCheckStatus::LEGAL) ret.emplace_back(move);
 		if (movingPiece.type == PieceType::PAWN)
 		{
@@ -309,6 +322,7 @@ std::vector<Move> GameState::getAllLegalMovesForPieceAt(Square sq)
 			}
 		}
 	}
+	
 	return ret;
 }
 /*

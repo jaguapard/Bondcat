@@ -23,7 +23,7 @@
 #undef main
 
 #include <string_view>
-#include "BondcatException.h"
+#include "BondcatException.h" 
 
 std::string StringifyEnum(MoveCheckStatus status)
 {
@@ -182,6 +182,43 @@ void UCI()
 }
 int main(int argc, char** argv)
 {
+	Globals::pawnAttacks.resize(64);
+	Globals::knightAttacks.resize(64);
+	Globals::bishopAttacks.resize(64);
+	Globals::rookAttacks.resize(64);
+	Globals::queenAttacks.resize(64);
+	Globals::kingAttacks.resize(64);
+	for (Square from : Square::all_inBounds())
+	{
+		for (Square to : Square::all_inBounds())
+		{
+			int dx = to.x - from.x;
+			int dy = to.y - from.y;
+			int i = from.toIndex();
+			uint64_t dstBit = 1ull << (to.toIndex());
+
+			if (from == to) continue;
+
+			Move move{ from,to,MoveType::MOVE_TO_SQUARE };
+			if ((std::abs(dx) == 1 && std::abs(dy) == 2) || (std::abs(dx) == 2 && std::abs(dy) == 1)) Globals::knightAttacks[i].push_back(move);
+			if (abs(dx) == abs(dy))
+			{
+				Globals::bishopAttacks[i].push_back(move);
+				Globals::queenAttacks[i].push_back(move);
+			}
+			if (dx == 0 || dy == 0)
+			{
+				Globals::rookAttacks[i].push_back(move);
+				Globals::queenAttacks[i].push_back(move);
+			}
+			if (abs(dx) <= 1 && abs(dy) <= 1) Globals::kingAttacks[i].push_back(move);
+
+			if (dx == 0 && abs(dy) == 1) Globals::pawnAttacks[i].push_back(move);
+			if (dx == 0 && abs(dy) == 2) Globals::pawnAttacks[i].push_back(move);
+			if (abs(dx) == 1 && abs(dy) == 1) Globals::pawnAttacks[i].push_back(move);
+		}
+	}
+
 	bool tablebaseLoaded = [&]()
 	{
 		const char* tableBasePath = getenv("BONDCAT_ENDGAME_TABLES_PATH");
