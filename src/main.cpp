@@ -25,7 +25,6 @@
 #include <string_view>
 #include "BondcatException.h"
 
-int Globals::tablebase_max_pieces = INT32_MIN;
 std::mutex Globals::tablebase_mutex; 
 
 std::string StringifyEnum(MoveCheckStatus status)
