@@ -3,5 +3,5 @@
 
 struct Globals
 {
-	static std::mutex tablebase_mutex;
+	static inline std::mutex tablebase_mutex;
 };

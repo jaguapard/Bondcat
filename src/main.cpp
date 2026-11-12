@@ -25,8 +25,6 @@
 #include <string_view>
 #include "BondcatException.h"
 
-std::mutex Globals::tablebase_mutex; 
-
 std::string StringifyEnum(MoveCheckStatus status)
 {
 	using enum MoveCheckStatus;
