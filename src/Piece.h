@@ -77,7 +77,7 @@ public:
 			return Team::BLACK;
 		}
 	}
-	PieceType getType()
+	PieceType getType() const
 	{
 		switch (repr)
 		{
