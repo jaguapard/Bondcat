@@ -76,8 +76,8 @@ public:
 	//Resets the game state to the standard starting position
 	void reset();
 
-	MoveList getAllLegalMoves();
-	MoveList getAllLegalMovesForPieceAt(Square sq);
+	void getAllLegalMoves(MoveList& ret);
+	void getAllLegalMovesForPieceAt(Square sq, MoveList& ret);
 
 	Piece& getPieceAt(Square s);
 	//const Piece& getPieceAt(int x, int y) const;

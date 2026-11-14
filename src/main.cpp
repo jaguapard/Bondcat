@@ -311,7 +311,9 @@ int main(int argc, char** argv)
 					{
 						boardDrawCtx.activeSquare = clickedAtSquare;
 						boardDrawCtx.circlesAt.clear();
-						for (auto& move : state.getAllLegalMovesForPieceAt(*boardDrawCtx.activeSquare))
+						MoveList legalMoves;
+						state.getAllLegalMovesForPieceAt(*boardDrawCtx.activeSquare, legalMoves);
+						for (auto& move : legalMoves)
 						{
 							boardDrawCtx.circlesAt.push_back({ move.to.x, move.to.y });
 						}

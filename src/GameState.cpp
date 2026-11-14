@@ -118,7 +118,8 @@ SearchReturn GameState::findBestMoveInner(int remainingDepth, float alpha, float
 	ret.nodesSearched++;
 	if (remainingDepth > 0)
 	{
-		auto moves = getAllLegalMoves();
+		MoveList moves;
+		getAllLegalMoves(moves);
 		ret.evaluation = -INFINITY;
 		for (auto& move : moves)
 		{
@@ -158,7 +159,8 @@ SearchReturn GameState::findBestMoveInner(int remainingDepth, float alpha, float
 			}
 
 			float whiteScore = 0, blackScore = 0;
-			auto moves = this->getAllLegalMoves();
+			MoveList moves;
+			this->getAllLegalMoves(moves);
 			float mobilityBonus = moves.size() * 0.02;
 
 			if (whitesTurn) whiteScore += mobilityBonus;
@@ -203,7 +205,8 @@ void GameState::updateStatus()
 	bool kingChecked = isTeamsKingChecked(nextTeamToMove);
 	bool checkmate = false;
 	
-	auto allLegalMoves = getAllLegalMoves();
+	MoveList allLegalMoves;
+	getAllLegalMoves(allLegalMoves);
 	if (kingChecked)
 	{
 		for (auto& move : allLegalMoves)
@@ -273,13 +276,11 @@ void GameState::reset()
 	*this = newGame();
 }
 
-MoveList GameState::getAllLegalMoves()
+void GameState::getAllLegalMoves(MoveList& ret)
 {
-	MoveList ret;
 	for (Square sq : Square::all_inBounds())
 	{
-		auto moves = getAllLegalMovesForPieceAt(sq);
-		for (auto& it : moves) ret.push_back(it);
+		getAllLegalMovesForPieceAt(sq, ret);
 	}
 
 	for (auto ct : { MoveType::WHITE_KINGSIDE_CASTLE, MoveType::WHITE_QUEENSIDE_CASTLE, MoveType::BLACK_KINGSIDE_CASTLE, MoveType::BLACK_QUEENSIDE_CASTLE })
@@ -288,16 +289,15 @@ MoveList GameState::getAllLegalMoves()
 		m.type = ct;
 		if (isLegalMove(m) == MoveCheckStatus::LEGAL) ret.push_back(m);
 	}
-	return ret;
 }
-MoveList GameState::getAllLegalMovesForPieceAt(Square sq)
+void GameState::getAllLegalMovesForPieceAt(Square sq, MoveList& ret)
 {
-	if (!sq.inBounds()) return {};
-	MoveList ret;
+	if (!sq.inBounds()) return;
 
 	Piece& movingPiece = getPieceAt(sq);
 	int ind = sq.toIndex();
-	const auto& cand = [&]() {
+	const std::vector<Move> empty;
+	const auto& cand = [&]() -> const auto& {
 		switch (movingPiece.type)
 		{
 		case PieceType::PAWN: return Globals::pawnAttacks[ind];
@@ -306,7 +306,7 @@ MoveList GameState::getAllLegalMovesForPieceAt(Square sq)
 		case PieceType::ROOK: return Globals::rookAttacks[ind];
 		case PieceType::QUEEN: return Globals::queenAttacks[ind];
 		case PieceType::KING: return Globals::kingAttacks[ind];
-		default: return std::vector<Move>{};
+		default: return empty; //would this be dangling reference?
 		}
 	}();
 
@@ -322,8 +322,6 @@ MoveList GameState::getAllLegalMovesForPieceAt(Square sq)
 			}
 		}
 	}
-	
-	return ret;
 }
 /*
 LegalMoves GameState::getAllLegalMoves()
