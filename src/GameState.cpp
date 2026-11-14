@@ -900,7 +900,7 @@ CompressedPosition::CompressedPosition(const std::array<Piece, 64>& board)
 	for (int i = 0; i < 64; ++i)
 	{
 		if (board[i].type == PieceType::EMPTY) continue;
-		int teamBit = board[i].team == BLACK ? 0 : 1;
+		int teamBit = board[i].team == Team::BLACK ? 0 : 1;
 		uint64_t code = 0;
 		switch (board[i].type)
 		{
@@ -911,7 +911,7 @@ CompressedPosition::CompressedPosition(const std::array<Piece, 64>& board)
 		case PieceType::QUEEN: code = 5; break;
 		default: break;
 		}
-		if (board[i].team == BLACK) code += 5;
+		if (board[i].team == Team::BLACK) code += 5;
 		this->bits[i / 16] |= code << (i * 4) % 64;
 	}
 }
