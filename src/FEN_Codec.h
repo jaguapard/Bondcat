@@ -42,6 +42,7 @@ struct FEN_Codec
 	std::optional<Square> enpassant; //current turn's en passant square
 	std::array<Piece, 64> board; //FEN notated pieces or ' ' (space) for empty squares
 
+	FEN_Codec() = default;
 	FEN_Codec(const std::string& fen);	//extract data from FEN string
 	std::string toFEN() const; //serializes data from this object to FEN string
 

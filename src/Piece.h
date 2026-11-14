@@ -41,7 +41,7 @@ class Piece
 {
 public:
 	Piece() = default;
-	Piece(TeamedPieceType teamedType) { teamedType = teamedType; }
+	Piece(TeamedPieceType teamedType) { this->teamedType = teamedType; }
 	Piece(PieceType type, Team team) 
 	{
 		if (type == PieceType::EMPTY || team == Team::NONE) teamedType = TeamedPieceType::EMPTY;

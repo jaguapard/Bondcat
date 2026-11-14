@@ -59,7 +59,7 @@ SearchReturn GameState::findBestMove(SearchParams params)
 			if (black) blackPieces |= pieceMask;
 			if (white) whitePieces |= pieceMask;
 		}
-		if (pieceCount > TB_LARGEST || whiteCanKingsideCastle || whiteCanQueensideCastle || blackCanKingsideCastle || blackCanQueensideCastle) return false;
+		if (pieceCount > TB_LARGEST || !castlingRights.nonePresent()) return false;
 
 		unsigned int tb_ret;
 		{
@@ -346,11 +346,7 @@ MoveCheckStatus GameState::isLegalCastlingMove(Move move)
 {
 	using enum MoveCheckStatus;
 	if (!move.isCastlingMove()) return CASTLING_CHECK_ON_NONCASTLING_MOVE;
-
-	if ((!whiteCanKingsideCastle && move.type == MoveType::WHITE_KINGSIDE_CASTLE) ||
-		(!blackCanKingsideCastle && move.type == MoveType::BLACK_KINGSIDE_CASTLE) ||
-		(!blackCanQueensideCastle && move.type == MoveType::BLACK_QUEENSIDE_CASTLE) ||
-		(!whiteCanQueensideCastle && move.type == MoveType::WHITE_QUEENSIDE_CASTLE)) return CASTLING_RIGHTS_ABSENT;
+	if (!castlingRights.corresponding(move.type)) return CASTLING_RIGHTS_ABSENT;
 
 	//castling locations are hardcoded
 	auto [king, rook] = getPiecesAtCaslingSquares(move);
@@ -402,8 +398,6 @@ MoveCheckStatus GameState::isLegalMove(Move move)
 
 	const Piece& movingPiece = getPieceAt(move.from);
 	const Piece& targetPiece = getPieceAt(move.to);
-	assert(movingPiece.type != PieceType::UNINITIALIZED);
-	assert(targetPiece.type != PieceType::UNINITIALIZED);
 	if ((movingPiece.team == Team::WHITE) != whitesTurn) return MoveCheckStatus::TURN_TEAM_MISMATCH; //can't move other side's pieces
 
 	//redundant simplifications
@@ -447,8 +441,8 @@ MoveCheckStatus GameState::isLegalMove(Move move)
 		if (movingPiece.type == PieceType::PAWN)
 		{
 			auto promotionTarget = move.getPromotionTarget();
-			bool onLastRank = move.to.y == (whitesTurn ? 0 : 7);
-			bool onStartingRank = move.from.y == (whitesTurn ? 6 : 1);
+			bool onLastRank = move.to.y == (movingPiece.team == Team::WHITE ? 0 : 7);
+			bool onStartingRank = move.from.y == (movingPiece.team == Team::WHITE ? 6 : 1);
 			if (promotionTarget && !onLastRank) return MoveCheckStatus::PAWN_PROMOTION_ON_NONLAST_RANK; //can promote only if on last rank
 			if (!promotionTarget && onLastRank) return MoveCheckStatus::PAWN_PROMOTION_ELIDED; //cannot stay as pawn on last rank, promotion required
 
@@ -456,7 +450,7 @@ MoveCheckStatus GameState::isLegalMove(Move move)
 			bool moveToEnpassantSquare = enpassant && move.to == *enpassant;
 			bool trulyEmpty = !moveToEnpassantSquare && targetPiece.type == PieceType::EMPTY;
 			bool oneStep = dx == 0 && dy == forward && trulyEmpty;
-			bool twoSteps = dx == 0 && dy == forward * 2 && !onStartingRank && trulyEmpty;
+			bool twoSteps = dx == 0 && dy == forward * 2 && onStartingRank && trulyEmpty;
 			bool capture = abs(dx) == 1 && dy == forward && ((targetPiece.type != PieceType::EMPTY && targetPiece.team != movingPiece.team) || moveToEnpassantSquare);
 			if (capture) return LEGAL;
 			if (!oneStep && !twoSteps && !capture) return PAWN_GENERAL_MOVEMENT_ILLEGAL;
@@ -541,10 +535,10 @@ std::pair<bool, MoveCheckStatus> GameState::tryApplyMove(Move move, bool skipVal
 	{
 		auto [king, rook] = getPiecesAtCaslingSquares(move);
 		const char *rookSq = nullptr, *kingSq = nullptr;
-		if (move.type == MoveType::WHITE_KINGSIDE_CASTLE) { rookSq = "f1"; kingSq = "g1"; whiteCanKingsideCastle = false; whiteCanQueensideCastle = false; }
-		if (move.type == MoveType::BLACK_KINGSIDE_CASTLE) { rookSq = "f8"; kingSq = "g8"; blackCanKingsideCastle = false; blackCanQueensideCastle = false; }
-		if (move.type == MoveType::WHITE_QUEENSIDE_CASTLE) { rookSq = "d1"; kingSq = "c1"; whiteCanQueensideCastle = false; whiteCanKingsideCastle = false; }
-		if (move.type == MoveType::BLACK_QUEENSIDE_CASTLE) { rookSq = "d8"; kingSq = "c8"; blackCanQueensideCastle = false; blackCanKingsideCastle = false; }
+		if (move.type == MoveType::WHITE_KINGSIDE_CASTLE) { rookSq = "f1"; kingSq = "g1"; castlingRights.whiteKingside = false; castlingRights.whiteQueenside = false; }
+		if (move.type == MoveType::BLACK_KINGSIDE_CASTLE) { rookSq = "f8"; kingSq = "g8"; castlingRights.blackKingside = false; castlingRights.blackQueenside = false; }
+		if (move.type == MoveType::WHITE_QUEENSIDE_CASTLE) { rookSq = "d1"; kingSq = "c1"; castlingRights.whiteKingside = false; castlingRights.whiteQueenside = false; }
+		if (move.type == MoveType::BLACK_QUEENSIDE_CASTLE) { rookSq = "d8"; kingSq = "c8"; castlingRights.blackKingside = false; castlingRights.blackQueenside = false; }
 		getPieceAt(rookSq) = rook;
 		getPieceAt(kingSq) = king;
 		king = rook = {};
@@ -553,7 +547,22 @@ std::pair<bool, MoveCheckStatus> GameState::tryApplyMove(Move move, bool skipVal
 	{
 		Piece& movingPiece = getPieceAt(move.from);
 		Piece& dstPiece = getPieceAt(move.to);
+		
 		if (dstPiece.type != PieceType::EMPTY && dstPiece.team != movingPiece.team) this->halfmoves = 0;
+		bool black = movingPiece.team == Team::BLACK;
+		if (movingPiece.type == PieceType::ROOK)
+		{
+			if (move.from == Square(0, 0)) castlingRights.blackQueenside = false;
+			if (move.from == Square(0, 7)) castlingRights.blackKingside = false;
+			if (move.from == Square(7, 0)) castlingRights.whiteQueenside = false;
+			if (move.from == Square(7, 7)) castlingRights.whiteKingside = false;
+		}
+		if (movingPiece.type == PieceType::KING)
+		{
+			if (movingPiece.team == Team::BLACK) castlingRights.blackKingside = castlingRights.blackQueenside = false;
+			else castlingRights.whiteKingside = castlingRights.whiteQueenside = false;
+		}
+
 		auto promotionTarget = move.getPromotionTarget();
 		if (promotionTarget) dstPiece = { *promotionTarget, movingPiece.team };
 		else dstPiece = movingPiece;
@@ -572,6 +581,7 @@ std::pair<bool, MoveCheckStatus> GameState::tryApplyMove(Move move, bool skipVal
 				getPieceAt(Square(enpassant->x, enpassant->y - forwardForMovingPawn)) = {};
 			}
 		}
+
 		movingPiece = {};
 	}
 	
@@ -586,74 +596,13 @@ std::pair<bool, MoveCheckStatus> GameState::tryApplyMove(Move move, bool skipVal
 GameState GameState::fromFEN(const std::string& s)
 {
 	GameState ret;
-
-
-	int boardIndex = 0;
-	std::stringstream ss(s);
-	std::string board, turn, castling, enpassant, halfmove, fullmove;
-	ss >> board >> turn >> castling >> enpassant >> ret.halfmoves >> ret.fullmoves;
-
-	ret.whitesTurn = turn[0] == 'w';
-	ret.enpassant = std::nullopt;
-	for (auto it : board)
-	{
-		if (it >= '1' && it <= '8')
-		{
-			for (int j = 0; j <= it - '1'; ++j)
-			{
-				ret.board[boardIndex++].type = PieceType::EMPTY;
-			}
-		}
-		else
-		{
-			switch (it)
-			{
-				//case '/': break;
-			case 'P': ret.board[boardIndex].team = Team::WHITE; ret.board[boardIndex++].type = PieceType::PAWN; break;
-			case 'N': ret.board[boardIndex].team = Team::WHITE; ret.board[boardIndex++].type = PieceType::KNIGHT; break;
-			case 'B': ret.board[boardIndex].team = Team::WHITE; ret.board[boardIndex++].type = PieceType::BISHOP; break;
-			case 'R': ret.board[boardIndex].team = Team::WHITE; ret.board[boardIndex++].type = PieceType::ROOK; break;
-			case 'Q': ret.board[boardIndex].team = Team::WHITE; ret.board[boardIndex++].type = PieceType::QUEEN; break;
-			case 'K': ret.board[boardIndex].team = Team::WHITE; ret.board[boardIndex++].type = PieceType::KING; break;
-
-			case 'p': ret.board[boardIndex].team = Team::BLACK; ret.board[boardIndex++].type = PieceType::PAWN; break;
-			case 'n': ret.board[boardIndex].team = Team::BLACK; ret.board[boardIndex++].type = PieceType::KNIGHT; break;
-			case 'b': ret.board[boardIndex].team = Team::BLACK; ret.board[boardIndex++].type = PieceType::BISHOP; break;
-			case 'r': ret.board[boardIndex].team = Team::BLACK; ret.board[boardIndex++].type = PieceType::ROOK; break;
-			case 'q': ret.board[boardIndex].team = Team::BLACK; ret.board[boardIndex++].type = PieceType::QUEEN; break;
-			case 'k': ret.board[boardIndex].team = Team::BLACK; ret.board[boardIndex++].type = PieceType::KING; break;
-			default: break;
-			}
-		}
-	}
-
-	for (auto sq : Square::all_inBounds())
-	{
-		Piece& p = ret.getPieceAt(sq);
-		if (p.type == PieceType::PAWN)
-		{
-			int startingY = p.team == Team::BLACK ? 1 : 6;
-			p.hasMoved = sq.y != startingY;
-		}
-	}
-	for (auto it : castling)
-	{
-		switch (it)
-		{
-		case 'K': ret.whiteCanKingsideCastle = true; break;
-		case 'Q': ret.whiteCanQueensideCastle = true; break;
-		case 'k': ret.blackCanKingsideCastle = true; break;
-		case 'q': ret.blackCanQueensideCastle = true; break;
-		default: break;
-		}
-	}
-	if (enpassant[0] != '-')
-	{
-		ret.enpassant = Square(enpassant);
-	}
-
-	for (auto& it : ret.board) assert(it.type != PieceType::UNINITIALIZED);
-	assert(enpassant.size() == 1 || enpassant.size() == 2);
+	FEN_Codec codec(s);
+	ret.whitesTurn = codec.whitesTurn;
+	ret.castlingRights = codec.castlingRights;
+	ret.halfmoves = codec.halfmoves;
+	ret.fullmoves = codec.fullmoves;
+	ret.board = codec.board;
+	ret.enpassant = codec.enpassant;
 	ret.updateStatus();
 	return ret;
 }
@@ -668,58 +617,14 @@ std::string GameState::xyToAlgebraic(int x, int y)
 
 std::string GameState::toFEN()
 {
-	//static std::unordered_map<PieceType, char> chr = {}
-	std::stringstream ss;
-	/*
-	int emptySquares = 0;
-	auto dump_empty = [&]() {
-		ss << emptySquares;
-		emptySquares = 0;
-		};
-		*/
-
-	for (int y = 0; y < 8; ++y)
-	{
-		int emptySquares = 0;
-		for (int x = 0; x < 8; ++x)
-		{
-			Piece& piece = getPieceAt(Square(x, y));
-			if (piece.type == PieceType::EMPTY) ++emptySquares;
-			else
-			{
-				if (emptySquares != 0) ss << emptySquares;
-				emptySquares = 0;
-				bool w = piece.team == Team::WHITE;
-				switch (piece.type)
-				{
-				case PieceType::PAWN: ss << (w ? 'P' : 'p'); break;
-				case PieceType::KNIGHT: ss << (w ? 'N' : 'n'); break;
-				case PieceType::BISHOP: ss << (w ? 'B' : 'b'); break;
-				case PieceType::ROOK: ss << (w ? 'R' : 'r'); break;
-				case PieceType::QUEEN: ss << (w ? 'Q' : 'q'); break;
-				case PieceType::KING: ss << (w ? 'K' : 'k'); break;
-				default: break;
-				}
-			}
-		}
-		if (emptySquares != 0) ss << emptySquares;
-		if (y != 7) ss << '/';
-	}
-	
-	ss << ' ' << (whitesTurn ? 'w' : 'b') << ' ';
-
-	if (whiteCanKingsideCastle) ss << 'K';
-	if (whiteCanQueensideCastle) ss << 'Q';
-	if (blackCanKingsideCastle) ss << 'k';
-	if (blackCanQueensideCastle) ss << 'q';
-	if (!blackCanKingsideCastle && !whiteCanKingsideCastle && !blackCanQueensideCastle && !whiteCanQueensideCastle) ss << '-';
-	ss << ' ';
-	
-	if (this->enpassant) ss << this->enpassant->toAlgebraic();
-	else ss << '-';
-
-	ss << ' ' << halfmoves << ' ' << fullmoves;
-	return ss.str();
+	FEN_Codec codec;
+	codec.whitesTurn = whitesTurn;
+	codec.castlingRights = castlingRights;
+	codec.halfmoves = halfmoves;
+	codec.fullmoves = fullmoves;
+	codec.board = board;
+	codec.enpassant = enpassant;
+	return codec.toFEN();
 }
 
 Path GameState::getPath(int startX, int startY, int stepX, int stepY)

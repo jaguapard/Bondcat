@@ -60,8 +60,7 @@ private:
 	SearchReturn findBestMoveInner(int remainingDepth, float alpha, float beta, const SearchParams& params);
 public:
 	std::array<Piece, 64> board;
-	bool blackCanQueensideCastle = false, blackCanKingsideCastle = false;
-	bool whiteCanQueensideCastle = false, whiteCanKingsideCastle = false;
+	CastlingRights castlingRights;
 	bool whitesTurn;
 	int halfmoves, fullmoves;
 	std::optional<Square> enpassant;
