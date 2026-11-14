@@ -166,6 +166,7 @@
     <ClInclude Include="src\Move.h" />
     <ClInclude Include="src\Piece.h" />
     <ClInclude Include="src\Square.h" />
+    <ClInclude Include="src\StaticArray.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include=".github\copilot-instructions.md" />
