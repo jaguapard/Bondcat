@@ -9,7 +9,7 @@
 #include <chrono>
 #include <map>
 #include "StaticArray.h"
-
+#include "FEN_Codec.h"
 /*
 struct LegalMoves
 {

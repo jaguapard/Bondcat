@@ -323,80 +323,7 @@ void GameState::getAllLegalMovesForPieceAt(Square sq, MoveList& ret)
 		}
 	}
 }
-/*
-LegalMoves GameState::getAllLegalMoves()
-{
-	LegalMoves ret;
-	//first, fill out basic movements, with very basic filtering
-	for (CastlingType ct : {CastlingType::WHITE_KINGSIDE, CastlingType::BLACK_KINGSIDE, CastlingType::WHITE_QUEENSIDE, CastlingType::BLACK_QUEENSIDE })
-	{
-		if (allowedCastlings[(int)ct]) ret.castlings.push_back(ct);
-	}
 
-	for (int i = 0; i < 64; ++i)
-	{
-		const Piece& movingPiece = board[i];
-		if (movingPiece.type == PieceType::EMPTY) continue;
-		if ((movingPiece.team == Team::WHITE) != whitesTurn) continue; //white/black pieces move only on their team's moves
-
-		SimpleMove m;
-		m.srcX = i % 8;
-		m.srcY = i / 8;
-		
-		if (movingPiece.type == PieceType::PAWN)
-		{
-			int forward = movingPiece.team == Team::BLACK ? 1 : -1;
-			m.dstY = m.srcY + forward;
-			for (int dx = -1; dx <= 1; ++dx)
-			{
-				m.dstX = m.srcX + dx;
-				if (dx != 0 && getPieceAt(m.dstX, m.dstY).type != PieceType::EMPTY) ret.simple.emplace_back(m);
-			}
-			if (!movingPiece.hasMoved)
-			{
-				m.dstX = m.srcX;
-				m.dstY = m.srcY + 2 * forward;
-				ret.simple.emplace_back(m);
-			}
-		}
-		if (movingPiece.type == PieceType::ROOK || movingPiece.type == PieceType::QUEEN)
-		{
-			for (int k = 0; k < 8; ++k)
-			{
-				m.dstX = m.srcX;
-				m.dstY = k;
-				ret.simple.emplace_back(m);
-				m.dstX = k;
-				m.dstY = m.srcY;
-				ret.simple.emplace_back(m);
-			}			
-		}
-	}
-
-	for (int i = 0; i < ret.simple.size(); ++i)
-	{
-		bool passesCleaning = [&]() {
-			auto& currMove = ret.simple[i];
-			if (currMove.dstX < 0 || currMove.dstX >= 8 || currMove.dstY < 0 || currMove.dstY >= 8) return false;
-			if (currMove.dstX == currMove.srcX && currMove.dstY == currMove.srcY) return false;
-			
-			Piece& targetPiece = getPieceAt(currMove.dstX, currMove.dstY);
-			Piece& movingPiece = getPieceAt(currMove.srcX, currMove.srcY);
-			//FIXME: yes, empty squares may have a team.
-			if (targetPiece.team == movingPiece.team && targetPiece.type != PieceType::EMPTY) return false;
-			
-			return true;
-			}();
-		if (!passesCleaning)
-		{
-			ret.simple[i--] = ret.simple.back();
-			ret.simple.pop_back();
-		}
-	}
-
-	return ret;
-}
-*/
 Piece& GameState::getPieceAt(Square s)
 {
 	return board[s.y * 8 + s.x];
@@ -663,6 +590,8 @@ std::pair<bool, MoveCheckStatus> GameState::tryApplyMove(Move move, bool skipVal
 GameState GameState::fromFEN(const std::string& s)
 {
 	GameState ret;
+
+
 	int boardIndex = 0;
 	std::stringstream ss(s);
 	std::string board, turn, castling, enpassant, halfmove, fullmove;
