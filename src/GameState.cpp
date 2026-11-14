@@ -356,8 +356,8 @@ MoveCheckStatus GameState::isLegalCastlingMove(Move move)
 	auto [king, rook] = getPiecesAtCaslingSquares(move);
 	if (king.type != PieceType::KING) return CASTLING_NOT_KING;
 	if (rook.type != PieceType::ROOK) return CASTLING_NOT_ROOK;
-	if (king.hasMoved) return CASTLING_KING_MOVED;
-	if (rook.hasMoved) return CASTLING_ROOK_MOVED;
+	//if (king.hasMoved) return CASTLING_KING_MOVED;
+	//if (rook.hasMoved) return CASTLING_ROOK_MOVED;
 	if (king.team != rook.team) return CASTLING_KING_ROOK_TEAM_MISMATCH;
 
 	Team castleTeam = (move.type == MoveType::WHITE_KINGSIDE_CASTLE || move.type == MoveType::WHITE_QUEENSIDE_CASTLE) ? Team::WHITE : Team::BLACK;
@@ -448,6 +448,7 @@ MoveCheckStatus GameState::isLegalMove(Move move)
 		{
 			auto promotionTarget = move.getPromotionTarget();
 			bool onLastRank = move.to.y == (whitesTurn ? 0 : 7);
+			bool onStartingRank = move.from.y == (whitesTurn ? 6 : 1);
 			if (promotionTarget && !onLastRank) return MoveCheckStatus::PAWN_PROMOTION_ON_NONLAST_RANK; //can promote only if on last rank
 			if (!promotionTarget && onLastRank) return MoveCheckStatus::PAWN_PROMOTION_ELIDED; //cannot stay as pawn on last rank, promotion required
 
@@ -455,7 +456,7 @@ MoveCheckStatus GameState::isLegalMove(Move move)
 			bool moveToEnpassantSquare = enpassant && move.to == *enpassant;
 			bool trulyEmpty = !moveToEnpassantSquare && targetPiece.type == PieceType::EMPTY;
 			bool oneStep = dx == 0 && dy == forward && trulyEmpty;
-			bool twoSteps = dx == 0 && dy == forward * 2 && !movingPiece.hasMoved && trulyEmpty;
+			bool twoSteps = dx == 0 && dy == forward * 2 && !onStartingRank && trulyEmpty;
 			bool capture = abs(dx) == 1 && dy == forward && ((targetPiece.type != PieceType::EMPTY && targetPiece.team != movingPiece.team) || moveToEnpassantSquare);
 			if (capture) return LEGAL;
 			if (!oneStep && !twoSteps && !capture) return PAWN_GENERAL_MOVEMENT_ILLEGAL;
@@ -546,7 +547,7 @@ std::pair<bool, MoveCheckStatus> GameState::tryApplyMove(Move move, bool skipVal
 		if (move.type == MoveType::BLACK_QUEENSIDE_CASTLE) { rookSq = "d8"; kingSq = "c8"; blackCanQueensideCastle = false; blackCanKingsideCastle = false; }
 		getPieceAt(rookSq) = rook;
 		getPieceAt(kingSq) = king;
-		king.type = rook.type = PieceType::EMPTY;
+		king = rook = {};
 	}
 	else
 	{
@@ -554,14 +555,9 @@ std::pair<bool, MoveCheckStatus> GameState::tryApplyMove(Move move, bool skipVal
 		Piece& dstPiece = getPieceAt(move.to);
 		if (dstPiece.type != PieceType::EMPTY && dstPiece.team != movingPiece.team) this->halfmoves = 0;
 		auto promotionTarget = move.getPromotionTarget();
-		if (promotionTarget)
-		{
-			dstPiece.type = *promotionTarget;
-			dstPiece.team = movingPiece.team;
-		}
+		if (promotionTarget) dstPiece = { *promotionTarget, movingPiece.team };
 		else dstPiece = movingPiece;
-		dstPiece.hasMoved = true;
-		
+
 		if (movingPiece.type == PieceType::PAWN)
 		{
 			this->halfmoves = 0;
@@ -573,10 +569,10 @@ std::pair<bool, MoveCheckStatus> GameState::tryApplyMove(Move move, bool skipVal
 			}
 			else if (enpassant && move.to == *enpassant)
 			{
-				getPieceAt(Square(enpassant->x, enpassant->y - forwardForMovingPawn)).type = PieceType::EMPTY;
+				getPieceAt(Square(enpassant->x, enpassant->y - forwardForMovingPawn)) = {};
 			}
 		}
-		movingPiece.type = PieceType::EMPTY;
+		movingPiece = {};
 	}
 	
 	if (eraseEnpassant) enpassant = std::nullopt;
