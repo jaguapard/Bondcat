@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <chrono>
 #include <map>
+#include "StaticArray.h"
 
 /*
 struct LegalMoves
@@ -49,6 +50,8 @@ struct CompressedPosition
 	CompressedPosition(const std::array<Piece, 64>& board);
 	bool operator<(const CompressedPosition& other) const;
 };
+
+typedef StaticArray<Move, 4100> MoveList;
 struct GameState
 {
 public:
@@ -73,8 +76,8 @@ public:
 	//Resets the game state to the standard starting position
 	void reset();
 
-	std::vector<Move> getAllLegalMoves();
-	std::vector<Move> getAllLegalMovesForPieceAt(Square sq);
+	MoveList getAllLegalMoves();
+	MoveList getAllLegalMovesForPieceAt(Square sq);
 
 	Piece& getPieceAt(Square s);
 	//const Piece& getPieceAt(int x, int y) const;

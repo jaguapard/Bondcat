@@ -273,9 +273,9 @@ void GameState::reset()
 	*this = newGame();
 }
 
-std::vector<Move> GameState::getAllLegalMoves()
+MoveList GameState::getAllLegalMoves()
 {
-	std::vector<Move> ret;
+	MoveList ret;
 	for (Square sq : Square::all_inBounds())
 	{
 		auto moves = getAllLegalMovesForPieceAt(sq);
@@ -290,10 +290,10 @@ std::vector<Move> GameState::getAllLegalMoves()
 	}
 	return ret;
 }
-std::vector<Move> GameState::getAllLegalMovesForPieceAt(Square sq)
+MoveList GameState::getAllLegalMovesForPieceAt(Square sq)
 {
 	if (!sq.inBounds()) return {};
-	std::vector<Move> ret;
+	MoveList ret;
 
 	Piece& movingPiece = getPieceAt(sq);
 	int ind = sq.toIndex();
@@ -312,7 +312,7 @@ std::vector<Move> GameState::getAllLegalMovesForPieceAt(Square sq)
 
 	for (auto move : cand)
 	{
-		if (isLegalMove(move) == MoveCheckStatus::LEGAL) ret.emplace_back(move);
+		if (isLegalMove(move) == MoveCheckStatus::LEGAL) ret.push_back(move);
 		if (movingPiece.type == PieceType::PAWN)
 		{
 			for (auto t : { MoveType::MOVE_AND_PROMOTE_TO_KNIGHT, MoveType::MOVE_AND_PROMOTE_TO_BISHOP, MoveType::MOVE_AND_PROMOTE_TO_ROOK, MoveType::MOVE_AND_PROMOTE_TO_QUEEN })
