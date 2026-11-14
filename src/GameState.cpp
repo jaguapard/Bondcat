@@ -203,17 +203,17 @@ void GameState::updateStatus()
 {
 	Team nextTeamToMove = whitesTurn ? Team::WHITE : Team::BLACK;
 	bool kingChecked = isTeamsKingChecked(nextTeamToMove);
-	bool checkmate = false;
 	
 	MoveList allLegalMoves;
 	getAllLegalMoves(allLegalMoves);
 	if (kingChecked)
 	{
+		bool checkmate = true;
 		for (auto& move : allLegalMoves)
 		{
 			auto copy = *this;
 			copy.tryApplyMove(move, true);
-			if (!isTeamsKingChecked(nextTeamToMove))
+			if (!copy.isTeamsKingChecked(nextTeamToMove))
 			{
 				checkmate = false;
 				break;

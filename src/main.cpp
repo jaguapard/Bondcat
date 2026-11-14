@@ -96,6 +96,22 @@ std::string StringifyEnum(GameStatus status)
 	}
 }
 
+std::string StringifyEnum(PieceType type)
+{
+	using enum PieceType;
+	switch (type)
+	{
+	case PieceType::PAWN: return "Pawn";
+	case PieceType::KNIGHT: return "Knight";
+	case PieceType::BISHOP: return "Bishop";
+	case PieceType::ROOK: return "Rook";
+	case PieceType::QUEEN: return "Queen";
+	case PieceType::KING: return "King";
+	case PieceType::EMPTY: return "Empty piece type";
+	default: return "Unknown PieceType value: " + std::to_string(int(type));
+	}
+}
+
 void UCI()
 {
 	GameState gameState;
@@ -256,6 +272,9 @@ int main(int argc, char** argv)
 		//state = GameState::fromFEN("1k4n1/6PP/4R3/1p6/1P6/8/P1K5/8 b kq - 0 56");
 		//state = GameState::fromFEN("8/8/8/2K2k2/8/8/8/8 w - - 0 1"); //king vs king test
 		//state = GameState::fromFEN("8/8/1k6/5N2/1r6/6B1/5K2/8 b - - 0 1"); //5-piece endgame test
+		//state = GameState::fromFEN("7k/5K2/6Q1/8/8/8/8/8 w - - 0 1"); //checkmate detection test
+		//state = GameState::fromFEN("rnb1kb1r/pp1ppppp/8/2qpP3/5P2/5N2/PPPPQ1PP/R1B1KB1R b KQk - 1 7"); //another queen blunder
+		//state = GameState::fromFEN("rnb1kb1r/pp1ppppp/8/3pP3/3P1P2/5N2/PPq1Q1PP/R1B1KB1R b KQk d3 0 8"); //direct followup of queen blunder
 
 		float minDim = std::min(w, h);
 		BoardView boardView({ 0,0,minDim,minDim }, 8, 8);
@@ -371,10 +390,17 @@ int main(int argc, char** argv)
 
 			if (!state.whitesTurn)
 			{
+				std::cout << "Engine thinking...\n";
 				SearchReturn search = state.findBestMove(params);
-				state.tryApplyMove(search.bestMove);
+				if (search.bestMove.from.inBounds()) std::cout << "Engine chose: " << StringifyEnum(state.getPieceAt(search.bestMove.from).type) << " " << search.bestMove.toUCI() << "\n";
+				auto [applied, status] = state.tryApplyMove(search.bestMove);
 				state.updateStatus();
 				std::cout << "Eval: " << search.evaluation << ", " << search.nodesSearched << " nodes searched in " << search.searchSeconds << " s (" << search.nodesPerSecond << " nps)\n";
+				if (!applied)
+				{
+					std::cerr << "Engine malfunction: chose illegal move: " << StringifyEnum(status) << "\n";
+					__debugbreak();
+				}
 			}
 		}
 
