@@ -1,5 +1,6 @@
 #pragma once
 #include "enums.h"
+#include <stdint.h>
 
 enum class Team
 {
@@ -19,7 +20,7 @@ enum class PieceType
 	EMPTY,
 };
 
-enum class TeamedPieceType
+enum class TeamedPieceType : uint8_t
 {
 	EMPTY,
 	WHITE_PAWN,
@@ -40,29 +41,29 @@ class Piece
 {
 public:
 	Piece() = default;
-	Piece(TeamedPieceType teamedType) { repr = teamedType; }
+	Piece(TeamedPieceType teamedType) { teamedType = teamedType; }
 	Piece(PieceType type, Team team) 
 	{
-		if (type == PieceType::EMPTY || team == Team::NONE) repr = TeamedPieceType::EMPTY;
+		if (type == PieceType::EMPTY || team == Team::NONE) teamedType = TeamedPieceType::EMPTY;
 		else 
 		{
 			bool white = team == Team::WHITE;
 			using enum TeamedPieceType;
 			switch (type)
 			{
-			case PieceType::PAWN: repr = white ? WHITE_PAWN : BLACK_PAWN; break;
-			case PieceType::KNIGHT: repr = white ? WHITE_KNIGHT : BLACK_KNIGHT; break;
-			case PieceType::BISHOP: repr = white ? WHITE_BISHOP : BLACK_BISHOP; break;
-			case PieceType::ROOK: repr = white ? WHITE_ROOK : BLACK_ROOK; break;
-			case PieceType::QUEEN: repr = white ? WHITE_QUEEN : BLACK_QUEEN; break;
-			case PieceType::KING: repr = white ? WHITE_KING : BLACK_KING; break;
+			case PieceType::PAWN: teamedType = white ? WHITE_PAWN : BLACK_PAWN; break;
+			case PieceType::KNIGHT: teamedType = white ? WHITE_KNIGHT : BLACK_KNIGHT; break;
+			case PieceType::BISHOP: teamedType = white ? WHITE_BISHOP : BLACK_BISHOP; break;
+			case PieceType::ROOK: teamedType = white ? WHITE_ROOK : BLACK_ROOK; break;
+			case PieceType::QUEEN: teamedType = white ? WHITE_QUEEN : BLACK_QUEEN; break;
+			case PieceType::KING: teamedType = white ? WHITE_KING : BLACK_KING; break;
 			default: break;
 			}
 		}
 	}
 	Team getTeam() const
 	{
-		switch (repr)
+		switch (teamedType)
 		{
 		case TeamedPieceType::EMPTY: 
 			return Team::NONE;
@@ -79,7 +80,7 @@ public:
 	}
 	PieceType getType() const
 	{
-		switch (repr)
+		switch (teamedType)
 		{
 		case TeamedPieceType::EMPTY:
 			return PieceType::EMPTY;
@@ -108,6 +109,7 @@ public:
 
 	Team __declspec(property(get = getTeam)) team;
 	PieceType __declspec(property(get = getType)) type;
+	TeamedPieceType teamedType = TeamedPieceType::EMPTY;
 private:
-	TeamedPieceType repr = TeamedPieceType::EMPTY;
+	
 };

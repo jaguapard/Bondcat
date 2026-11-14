@@ -8,6 +8,7 @@ class Square
 {
 public:
 	Square() = default;
+	Square(int ind);
 	Square(int8_t x, int8_t y);
 	Square(const char* algebraic);
 	Square(const std::string& algebraic);

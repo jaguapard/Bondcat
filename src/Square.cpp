@@ -1,6 +1,11 @@
 #include "Square.h"
 #include <assert.h>
 
+Square::Square(int ind)
+{
+	y = ind / 8; x = ind % 8;
+}
+
 Square::Square(int8_t x, int8_t y)
 	:x(x), y(y)
 {
