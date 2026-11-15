@@ -481,7 +481,7 @@ MoveCheckStatus GameState::isLegalMove(Move move)
 	if (isLegalWithUncheckedKing != MoveCheckStatus::LEGAL) return isLegalWithUncheckedKing;
 
 	auto rollback = this->makeMove(move);
-	bool stillChecked = isTeamsKingChecked(whitesTurn ? Team::WHITE : Team::BLACK); //TODO: check this
+	bool stillChecked = isTeamsKingChecked(whitesTurn ? Team::BLACK : Team::WHITE); //TODO: check this
 	this->rollbackMove(rollback);
 	return stillChecked ? MoveCheckStatus::MOVING_TEAMS_KING_IN_CHECK : MoveCheckStatus::LEGAL;
 }

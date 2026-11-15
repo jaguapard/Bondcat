@@ -234,6 +234,8 @@ int main(int argc, char** argv)
 		//state = GameState::fromFEN("7k/5K2/6Q1/8/8/8/8/8 w - - 0 1"); //checkmate detection test
 		//state = GameState::fromFEN("rnb1kb1r/pp1ppppp/8/2qpP3/5P2/5N2/PPPPQ1PP/R1B1KB1R b KQk - 1 7"); //another queen blunder
 		//state = GameState::fromFEN("rnb1kb1r/pp1ppppp/8/3pP3/3P1P2/5N2/PPq1Q1PP/R1B1KB1R b KQk d3 0 8"); //direct followup of queen blunder
+		//state = GameState::fromFEN("rnb1k2r/pppp1p1p/3b1q2/3P1p2/3N4/6PB/PPP4P/R1BQK2R b KQkq - 0 11"); //wrong checks
+		//state = GameState::fromFEN("8/kQ6/2K5/8/8/8/8/8 b - - 6 61"); //mate garbage
 
 		float minDim = std::min(w, h);
 		BoardView boardView({ 0,0,minDim,minDim }, 8, 8);
