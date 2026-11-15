@@ -578,6 +578,19 @@ std::pair<bool, MoveCheckStatus> GameState::tryApplyMove(Move move, bool skipVal
 	return { true, status };
 }
 
+MoveResult GameState::tryMakeMove(const Move& move)
+{
+	MoveResult ret;
+	ret.applied = false;
+	ret.checkStatus = isLegalMove(move);
+	if (ret.checkStatus == MoveCheckStatus::LEGAL)
+	{
+		ret.rollbackData = this->makeMove(move);
+		ret.applied = true;
+	}
+	return ret;
+}
+
 GameState GameState::fromFEN(const std::string& s)
 {
 	GameState ret;
