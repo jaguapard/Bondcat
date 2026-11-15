@@ -47,7 +47,7 @@ struct CompressedPosition
 {
 	CompressedPosition() = default;
 
-	std::array<uint64_t, 4> bits;
+	std::array<uint64_t, 8> bits;
 	CompressedPosition(const std::array<Piece, 64>& board);
 	bool operator<(const CompressedPosition& other) const;
 };

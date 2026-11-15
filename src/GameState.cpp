@@ -742,29 +742,15 @@ bool Path::isPointOnPath(int x, int y)
 
 CompressedPosition::CompressedPosition(const std::array<Piece, 64>& board)
 {
-	this->bits = { 0 };
-	for (int i = 0; i < 64; ++i)
-	{
-		if (board[i].type == PieceType::EMPTY) continue;
-		int teamBit = board[i].team == Team::BLACK ? 0 : 1;
-		uint64_t code = 0;
-		switch (board[i].type)
-		{
-		case PieceType::PAWN: code = 1; break;
-		case PieceType::KNIGHT: code = 2; break;
-		case PieceType::BISHOP: code = 3; break;
-		case PieceType::ROOK: code = 4; break;
-		case PieceType::QUEEN: code = 5; break;
-		default: break;
-		}
-		if (board[i].team == Team::BLACK) code += 5;
-		this->bits[i / 16] |= code << (i * 4) % 64;
-	}
+	//Piece class is now properly made, so unless something stupid is being done (like changing values in raw memory bypassing Piece and it's enum class machinery),
+	//the same this->bits should (TODO: verify) be same positions
+	static_assert(sizeof(this->bits) == sizeof(board));
+	memcpy(this->bits.data(), board.data(), sizeof(board));
 }
 
 bool CompressedPosition::operator<(const CompressedPosition& other) const
 {
-	for (int i = 0; i < 4; ++i)
+	for (int i = 0; i < std::size(bits); ++i)
 	{
 		if (bits[i] == other.bits[i]) continue;
 		return bits[i] < other.bits[i];
