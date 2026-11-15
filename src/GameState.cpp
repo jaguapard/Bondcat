@@ -525,7 +525,7 @@ MoveRollbackData GameState::makeMove(const Move& move)
 	rollback.halfmoves = halfmoves;
 	rollback.fullmoves = fullmoves;
 	rollback.enpassant = enpassant;
-	rollback.move = move;
+	rollback.board = board;
 
 	this->halfmoves++;
 	this->whitesTurn ^= 1;
@@ -548,10 +548,6 @@ MoveRollbackData GameState::makeMove(const Move& move)
 	{
 		Piece& movingPiece = getPieceAt(move.from);
 		Piece& dstPiece = getPieceAt(move.to);
-		rollback.capturedPiece = dstPiece;
-		rollback.capturedPieceSq = move.to;
-		rollback.movingPiece = movingPiece;
-		rollback.movingPieceSq = move.from;
 
 		if (dstPiece.type != PieceType::EMPTY && dstPiece.team != movingPiece.team) this->halfmoves = 0;
 		bool black = movingPiece.team == Team::BLACK;
@@ -584,7 +580,6 @@ MoveRollbackData GameState::makeMove(const Move& move)
 			else if (enpassant && move.to == *enpassant)
 			{
 				Square enpassantCapturedSq = Square(enpassant->x, enpassant->y - forwardForMovingPawn);
-				rollback.capturedPieceSq = enpassantCapturedSq;
 				getPieceAt(enpassantCapturedSq) = {};
 			}
 		}
@@ -611,27 +606,7 @@ void GameState::rollbackMove(const MoveRollbackData& rollbackData)
 	fullmoves = rollbackData.fullmoves;
 	enpassant = rollbackData.enpassant;
 	whitesTurn ^= 1;
-
-	if (rollbackData.move.isCastlingMove())
-	{
-		CastlingSquares castlingSquares(rollbackData.move.type);
-		Piece rook = getPieceAt(castlingSquares.rookEnd);
-		Piece king = getPieceAt(castlingSquares.kingEnd);
-		getPieceAt(castlingSquares.kingEnd) = getPieceAt(castlingSquares.rookEnd) = {};
-		getPieceAt(castlingSquares.rookStart) = rook;
-		getPieceAt(castlingSquares.kingStart) = king;
-	}
-	else
-	{
-		Piece movedPiece = rollbackData.movingPiece;
-		if (rollbackData.move.getPromotionTarget())
-		{
-			movedPiece = { PieceType::PAWN, movedPiece.team };
-		}
-		getPieceAt(rollbackData.capturedPieceSq) = rollbackData.capturedPiece;
-		getPieceAt(rollbackData.movingPieceSq) = movedPiece;
-	}
-
+	board = rollbackData.board;
 }
 
 GameState GameState::fromFEN(const std::string& s)

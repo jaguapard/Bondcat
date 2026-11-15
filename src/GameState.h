@@ -57,9 +57,7 @@ struct MoveRollbackData
 	CastlingRights castlingRights; //castling rights before the move
 	std::optional<Square> enpassant; //en passant square before the move
 	uint32_t halfmoves, fullmoves;
-	Move move;
-	Piece movingPiece, capturedPiece;
-	Square movingPieceSq, capturedPieceSq;
+	std::array<Piece, 64> board;
 };
 
 struct MoveResult
