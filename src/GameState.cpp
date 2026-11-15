@@ -553,8 +553,8 @@ std::pair<bool, MoveCheckStatus> GameState::tryApplyMove(Move move, bool skipVal
 		if (movingPiece.type == PieceType::ROOK)
 		{
 			if (move.from == Square(0, 0)) castlingRights.blackQueenside = false;
-			if (move.from == Square(0, 7)) castlingRights.blackKingside = false;
-			if (move.from == Square(7, 0)) castlingRights.whiteQueenside = false;
+			if (move.from == Square(7, 0)) castlingRights.blackKingside = false;
+			if (move.from == Square(0, 7)) castlingRights.whiteQueenside = false;
 			if (move.from == Square(7, 7)) castlingRights.whiteKingside = false;
 		}
 		if (movingPiece.type == PieceType::KING)

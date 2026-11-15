@@ -51,7 +51,7 @@ FEN_Codec::FEN_Codec(const std::string& fen)
 		case 'K': this->castlingRights.whiteKingside = true; break;
 		case 'Q': this->castlingRights.whiteQueenside = true; break;
 		case 'k': this->castlingRights.blackKingside = true; break;
-		case 'q': this->castlingRights.whiteQueenside = true; break;
+		case 'q': this->castlingRights.blackQueenside = true; break;
 		case '-':
 			if (castling.length() > 1) throw BondcatException("Invalid FEN string: " + fen + "\ninvalid castling string : " + castling);
 			break;
