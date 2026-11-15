@@ -190,8 +190,15 @@ void UCI()
 
 			int evalScore = mv.evaluation * 100;
 			int reportedScore = gameState.whitesTurn ? evalScore : -evalScore;
-			std::cout << "info score cp " << reportedScore << " nodes " << mv.nodesSearched << " nps " << uint64_t(mv.nodesPerSecond) << "\n";
-			std::cout << "bestmove " << mv.bestMove.toUCI() << "\n";
+			std::cout << "info nodes " << mv.nodesSearched << " nps " << uint64_t(mv.nodesPerSecond) << " score ";
+			if (abs(mv.evaluation) > 1000) //mate
+			{
+				int mateIn = (10000 - abs(mv.evaluation)) / 2;
+				if (mv.evaluation < 0) std::cout << "mate " << mateIn;
+				else std::cout << "mate " << -mateIn;
+			}
+			else std::cout << "cp " << reportedScore;
+			std::cout << "\nbestmove " << mv.bestMove.toUCI() << "\n";
 		}
 		if (cmd == "quit") return;
 	}

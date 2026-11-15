@@ -139,17 +139,17 @@ SearchReturn GameState::findBestMoveInner(int remainingDepth, float alpha, float
 	else
 	{
 		//negative for black advantage, positive for white advantage. Negamax expects it to be positive for current side advantaged, so it'll be adjusted later
-		float neutralEval = [&]() {
+		float neutralEval = [&]() -> float {
 			switch (*this->gameStatus)
 			{
 			//case GameStatus::WHITE_WON_BY_TIME:
 			case GameStatus::WHITE_WON_BY_CHECKMATE:
 			//case GameStatus::WHITE_WON_ENEMY_RESIGNED:
-				return INFINITY;
+				return 10000 - (params.maxDepth - remainingDepth);
 			//case GameStatus::BLACK_WON_BY_TIME:
 			case GameStatus::BLACK_WON_BY_CHECKMATE:
 			//case GameStatus::BLACK_WON_ENEMY_RESIGNED:
-				return -INFINITY;
+				return -(10000 - (params.maxDepth - remainingDepth));
 			//case GameStatus::DRAW_ACCEPTED:
 			case GameStatus::DRAW_STALEMATE:
 			case GameStatus::DRAW_THREEFOLD_REPETITION:
