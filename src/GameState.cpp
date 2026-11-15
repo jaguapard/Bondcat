@@ -605,8 +605,11 @@ void GameState::rollbackMove(const MoveRollbackData& rollbackData)
 
 	if (rollbackData.move.isCastlingMove())
 	{
-		//put king and rook back
-		Square 
+		CastlingSquares castlingSquares(rollbackData.move.type);
+		Piece rook = getPieceAt(castlingSquares.rookEnd);
+		Piece king = getPieceAt(castlingSquares.kingEnd);
+		getPieceAt(castlingSquares.rookStart) = rook;
+		getPieceAt(castlingSquares.kingStart) = king;
 	}
 	else
 	{
