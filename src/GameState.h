@@ -57,8 +57,8 @@ struct MoveRollbackData
 	CastlingRights castlingRights; //castling rights before the move
 	std::optional<Square> enpassant; //en passant square before the move
 	uint32_t halfmoves, fullmoves;
-	std::optional<Piece> capturedPiece; //piece captured by this move
-	Square captutedPieceSquare; //square that the captured piece should return to. If capturedPiece is null, this is an unused field.
+	Piece capturedPiece; //piece captured by this move. May be empty
+	Move move;
 };
 
 struct MoveResult
@@ -68,6 +68,11 @@ struct MoveResult
 	MoveRollbackData rollbackData;
 };
 
+struct CastlingSquares
+{
+	Square kingStart, kingEnd, rookStart, rookEnd;
+	CastlingSquares(MoveType type);
+};
 typedef StaticArray<Move, 4100> MoveList;
 struct GameState
 {
@@ -148,5 +153,5 @@ public:
 
 	MoveResult tryMakeMove(const Move& move); //Applies move if it is legal 
 	MoveRollbackData makeMove(const Move& move); //Applies move without validation
-	void rollbackMove(const Move& move, const MoveRollbackData& rollbackData); //rolls back move. Only supports rolling back the last move applied.
+	void rollbackMove(const MoveRollbackData& rollbackData); //rolls back move. Only supports rolling back the last move applied.
 };

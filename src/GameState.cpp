@@ -502,15 +502,28 @@ bool GameState::isTeamsKingChecked(Team team)
 	return squareIsAttackedFor(kingX, kingY, team);
 }
 
-std::pair<bool, MoveCheckStatus> GameState::tryApplyMove(Move move, bool skipValidation)
+MoveResult GameState::tryMakeMove(const Move& move)
 {
-	using enum MoveCheckStatus;
-	MoveCheckStatus status = LEGALITY_CHECK_SKIPPED;
-	if (!skipValidation)
+	MoveResult ret;
+	ret.applied = false;
+	ret.checkStatus = isLegalMove(move);
+	if (ret.checkStatus == MoveCheckStatus::LEGAL)
 	{
-		status = isLegalMove(move);
-		if (status != MoveCheckStatus::LEGAL) return { false,status };
+		ret.rollbackData = this->makeMove(move);
+		ret.applied = true;
 	}
+	return ret;
+}
+
+MoveRollbackData GameState::makeMove(const Move& move)
+{
+	MoveRollbackData rollback;
+	rollback.castlingRights = castlingRights;
+	rollback.halfmoves = halfmoves;
+	rollback.fullmoves = fullmoves;
+	rollback.enpassant = enpassant;
+	rollback.move = move;
+
 	this->halfmoves++;
 	this->whitesTurn ^= 1;
 	if (this->whitesTurn) this->fullmoves++;
@@ -519,7 +532,7 @@ std::pair<bool, MoveCheckStatus> GameState::tryApplyMove(Move move, bool skipVal
 	if (move.isCastlingMove())
 	{
 		auto [king, rook] = getPiecesAtCaslingSquares(move);
-		const char *rookSq = nullptr, *kingSq = nullptr;
+		const char* rookSq = nullptr, * kingSq = nullptr;
 		if (move.type == MoveType::WHITE_KINGSIDE_CASTLE) { rookSq = "f1"; kingSq = "g1"; castlingRights.whiteKingside = false; castlingRights.whiteQueenside = false; }
 		if (move.type == MoveType::BLACK_KINGSIDE_CASTLE) { rookSq = "f8"; kingSq = "g8"; castlingRights.blackKingside = false; castlingRights.blackQueenside = false; }
 		if (move.type == MoveType::WHITE_QUEENSIDE_CASTLE) { rookSq = "d1"; kingSq = "c1"; castlingRights.whiteKingside = false; castlingRights.whiteQueenside = false; }
@@ -532,7 +545,8 @@ std::pair<bool, MoveCheckStatus> GameState::tryApplyMove(Move move, bool skipVal
 	{
 		Piece& movingPiece = getPieceAt(move.from);
 		Piece& dstPiece = getPieceAt(move.to);
-		
+		rollback.capturedPiece = dstPiece;
+
 		if (dstPiece.type != PieceType::EMPTY && dstPiece.team != movingPiece.team) this->halfmoves = 0;
 		bool black = movingPiece.team == Team::BLACK;
 		if (movingPiece.type == PieceType::ROOK)
@@ -569,26 +583,45 @@ std::pair<bool, MoveCheckStatus> GameState::tryApplyMove(Move move, bool skipVal
 
 		movingPiece = {};
 	}
-	
+
 	if (eraseEnpassant) enpassant = std::nullopt;
 	//sadly, we can't put the check of game status here, since it creates infinite recursion of getting legal moves. 
 	//Thus, gameStatus is made optional that will explode on unwrapping, forcing callers to update game status
 	this->gameStatus = std::nullopt;
 	this->seenPositions[board]++;
-	return { true, status };
+
+	return rollback;
 }
 
-MoveResult GameState::tryMakeMove(const Move& move)
+void GameState::rollbackMove(const MoveRollbackData& rollbackData)
 {
-	MoveResult ret;
-	ret.applied = false;
-	ret.checkStatus = isLegalMove(move);
-	if (ret.checkStatus == MoveCheckStatus::LEGAL)
+	assert(seenPositions[board] >= 1);
+	seenPositions[board]--;
+	castlingRights = rollbackData.castlingRights;
+	halfmoves = rollbackData.halfmoves;
+	fullmoves = rollbackData.fullmoves;
+	enpassant = rollbackData.enpassant;
+	whitesTurn ^= 1;
+
+	if (rollbackData.move.isCastlingMove())
 	{
-		ret.rollbackData = this->makeMove(move);
-		ret.applied = true;
+		//put king and rook back
+		Square 
 	}
-	return ret;
+	else
+	{
+		Piece& movingPiece = getPieceAt(rollbackData.move.from);
+		Piece& targetPiece = getPieceAt(rollbackData.move.to);
+		movingPiece = targetPiece;
+		targetPiece = rollbackData.capturedPiece;
+		
+		if (rollbackData.move.getPromotionTarget())
+		{
+			movingPiece = { PieceType::PAWN, movingPiece.team };
+		}
+
+	}
+
 }
 
 GameState GameState::fromFEN(const std::string& s)
@@ -769,4 +802,22 @@ std::string SearchReturn::toUCI() const
 	else ss << "cp " << reportedScore;
 	ss << "\nbestmove " << bestMove.toUCI();
 	return ss.str();
+}
+
+CastlingSquares::CastlingSquares(MoveType type)
+{
+	assert(Move({}, {}, type).isCastlingMove());
+	switch (type)
+	{
+	case MoveType::WHITE_KINGSIDE_CASTLE: 
+		kingStart = { 4, 7 }; kingEnd = { 6,7 }; rookStart = { 7,7 }; rookEnd = { 5,7 }; break;
+	case MoveType::BLACK_KINGSIDE_CASTLE:
+		kingStart = { 4, 0 }; kingEnd = { 6,0 }; rookStart = { 7,0 }; rookEnd = { 5,0 }; break;
+	case MoveType::WHITE_QUEENSIDE_CASTLE:
+		kingStart = { 4,7 }; kingEnd = { 2, 7 }; rookStart = { 0, 7 }; rookEnd = { 3,7 }; break;
+	case MoveType::BLACK_QUEENSIDE_CASTLE:
+		kingStart = { 4,0 }; kingEnd = { 2, 0 }; rookStart = { 0, 0 }; rookEnd = { 3,0 }; break;
+	default:
+		break;
+	}
 }
