@@ -123,15 +123,16 @@ SearchReturn GameState::findBestMoveInner(int remainingDepth, float alpha, float
 		ret.evaluation = -INFINITY;
 		for (auto& move : moves)
 		{
-			auto copy = *this;
-			copy.tryApplyMove(move, true);
-			copy.updateStatus();
+			auto rollback = this->makeMove(move);
+			this->updateStatus();
 
-			SearchReturn subsearch = copy.findBestMoveInner(copy.gameStatus != GameStatus::ONGOING ? 0 : remainingDepth - 1, -beta, -alpha, params);
+			SearchReturn subsearch = findBestMoveInner(gameStatus != GameStatus::ONGOING ? 0 : remainingDepth - 1, -beta, -alpha, params);
 			ret.nodesSearched += subsearch.nodesSearched;
 			if (-subsearch.evaluation > ret.evaluation) ret.bestMove = move;
 			ret.evaluation = std::max(-subsearch.evaluation, ret.evaluation);
 			alpha = std::max(alpha, ret.evaluation);
+
+			this->rollbackMove(rollback);
 			if (alpha >= beta) break;
 		}
 		return ret;
@@ -209,16 +210,19 @@ void GameState::updateStatus()
 	if (kingChecked)
 	{
 		bool checkmate = true;
+		std::optional<MoveRollbackData> rollback;
 		for (auto& move : allLegalMoves)
 		{
-			auto copy = *this;
-			copy.tryApplyMove(move, true);
-			if (!copy.isTeamsKingChecked(nextTeamToMove))
+			rollback = this->makeMove(move);
+			if (!isTeamsKingChecked(nextTeamToMove))
 			{
 				checkmate = false;
 				break;
 			}
+			this->rollbackMove(*rollback);
 		}
+
+		if (rollback) this->rollbackMove(*rollback);
 		if (checkmate)
 		{
 			this->gameStatus = whitesTurn ? GameStatus::BLACK_WON_BY_CHECKMATE : GameStatus::WHITE_WON_BY_CHECKMATE;
@@ -476,11 +480,10 @@ MoveCheckStatus GameState::isLegalMove(Move move)
 
 	if (isLegalWithUncheckedKing != MoveCheckStatus::LEGAL) return isLegalWithUncheckedKing;
 
-	auto copy = *this;
-	copy.tryApplyMove(move, true);
-	//NOTE: should use CURRENT game state's turn, not advanced one's!
-	if (copy.isTeamsKingChecked(whitesTurn ? Team::WHITE : Team::BLACK)) return MoveCheckStatus::MOVING_TEAMS_KING_IN_CHECK; //move leaves or puts moving team's king in check
-	return MoveCheckStatus::LEGAL;
+	auto rollback = this->makeMove(move);
+	bool stillChecked = isTeamsKingChecked(whitesTurn ? Team::WHITE : Team::BLACK); //TODO: check this
+	this->rollbackMove(rollback);
+	return stillChecked ? MoveCheckStatus::MOVING_TEAMS_KING_IN_CHECK : MoveCheckStatus::LEGAL;
 }
 
 bool GameState::isTeamsKingChecked(Team team)
