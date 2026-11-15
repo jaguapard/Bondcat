@@ -187,18 +187,7 @@ void UCI()
 			while (ss >> token) if (token == "depth") ss >> params.maxDepth;
 
 			SearchReturn mv = gameState.findBestMove(params);
-
-			int evalScore = mv.evaluation * 100;
-			int reportedScore = gameState.whitesTurn ? evalScore : -evalScore;
-			std::cout << "info nodes " << mv.nodesSearched << " nps " << uint64_t(mv.nodesPerSecond) << " score ";
-			if (abs(mv.evaluation) > 1000) //mate
-			{
-				int mateIn = (10000 - abs(mv.evaluation)) / 2;
-				if (mv.evaluation < 0) std::cout << "mate " << mateIn;
-				else std::cout << "mate " << -mateIn;
-			}
-			else std::cout << "cp " << reportedScore;
-			std::cout << "\nbestmove " << mv.bestMove.toUCI() << "\n";
+			std::cout << mv.toUCI() << "\n";
 		}
 		if (cmd == "quit") return;
 	}
@@ -335,13 +324,16 @@ int main(int argc, char** argv)
 					auto clickedAtSquare = boardView.squareAt(p);
 					if (!boardDrawCtx.activeSquare)
 					{
-						boardDrawCtx.activeSquare = clickedAtSquare;
-						boardDrawCtx.circlesAt.clear();
-						MoveList legalMoves;
-						state.getAllLegalMovesForPieceAt(*boardDrawCtx.activeSquare, legalMoves);
-						for (auto& move : legalMoves)
+						if (clickedAtSquare.inBounds() && state.getPieceAt(clickedAtSquare).type != PieceType::EMPTY)
 						{
-							boardDrawCtx.circlesAt.push_back({ move.to.x, move.to.y });
+							boardDrawCtx.activeSquare = clickedAtSquare;
+							boardDrawCtx.circlesAt.clear();
+							MoveList legalMoves;
+							state.getAllLegalMovesForPieceAt(*boardDrawCtx.activeSquare, legalMoves);
+							for (auto& move : legalMoves)
+							{
+								boardDrawCtx.circlesAt.push_back({ move.to.x, move.to.y });
+							}
 						}
 					}
 					else
@@ -397,12 +389,14 @@ int main(int argc, char** argv)
 
 			if (!state.whitesTurn)
 			{
-				std::cout << "Engine thinking...\n";
+				std::cout << "Engine thinking...";
 				SearchReturn search = state.findBestMove(params);
+				std::cout << " done in " << search.searchSeconds << " sec.\n";
+
 				if (search.bestMove.from.inBounds()) std::cout << "Engine chose: " << StringifyEnum(state.getPieceAt(search.bestMove.from).type) << " " << search.bestMove.toUCI() << "\n";
 				auto [applied, status] = state.tryApplyMove(search.bestMove);
 				state.updateStatus();
-				std::cout << "Eval: " << search.evaluation << ", " << search.nodesSearched << " nodes searched in " << search.searchSeconds << " s (" << search.nodesPerSecond << " nps)\n";
+				std::cout << search.toUCI() << "\n";
 				if (!applied)
 				{
 					std::cerr << "Engine malfunction: chose illegal move: " << StringifyEnum(status) << "\n";

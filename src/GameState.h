@@ -40,6 +40,7 @@ struct SearchReturn
 	
 	uint64_t nodesSearched = 0;
 	double searchSeconds, nodesPerSecond;
+	std::string toUCI() const;
 };
 
 struct CompressedPosition

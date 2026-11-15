@@ -755,3 +755,20 @@ bool CompressedPosition::operator<(const CompressedPosition& other) const
 	}
 	return false; //equal
 }
+
+std::string SearchReturn::toUCI() const
+{
+	std::stringstream ss;
+	int evalScore = evaluation * 100;
+	int reportedScore = evalScore;
+	ss << "info nodes " << nodesSearched << " nps " << uint64_t(nodesPerSecond) << " score ";
+	if (abs(evaluation) > 1000) //mate
+	{
+		int mateIn = (10000 - abs(evaluation)) / 2;
+		if (evaluation < 0) ss << "mate " << mateIn;
+		else ss << "mate " << -mateIn;
+	}
+	else ss << "cp " << reportedScore;
+	ss << "\nbestmove " << bestMove.toUCI();
+	return ss.str();
+}
