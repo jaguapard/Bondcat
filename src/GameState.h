@@ -146,11 +146,6 @@ public:
 	//Throws an exception if team is NONE
 	bool isTeamsKingChecked(Team team);
 
-	//@brief Attempts to apply a move to the current game state. If the attempt was successfull, applies the move and advances game state by one ply.
-	//@return First element of the pair is true if move was successfully applied (due to being legal or legality check skipped), or false otherwise.
-	//Second element of the pair returns the corresponding status
-	std::pair<bool, MoveCheckStatus> tryApplyMove(Move m, bool skipValidation = false);
-
 	MoveResult tryMakeMove(const Move& move); //Applies move if it is legal 
 	MoveRollbackData makeMove(const Move& move); //Applies move without validation
 	void rollbackMove(const MoveRollbackData& rollbackData); //rolls back move. Only supports rolling back the last move applied.

@@ -170,8 +170,8 @@ void UCI()
 					else throw BondcatException("UCI wrong castling: " + moveStr);
 				}
 
-				auto [applied, status] = gameState.tryApplyMove(move);
-				if (!applied) throw BondcatException("UCI illegal move: " + StringifyEnum(status));
+				MoveResult result = gameState.tryMakeMove(move);
+				if (!result.applied) throw BondcatException("UCI illegal move: " + StringifyEnum(result.checkStatus));
 				gameState.updateStatus();
 			}
 		}
@@ -316,6 +316,13 @@ int main(int argc, char** argv)
 							m.type = MoveType::MOVE_AND_PROMOTE_TO_QUEEN;
 						}
 
+						MoveResult result = state.tryMakeMove(m);
+						if (!result.applied)
+						{
+							std::cout << StringifyEnum(result.checkStatus) << "\n";
+						}
+						else std::cout << state.toFEN() << "\n";
+						/*
 						using enum MoveType;
 						std::pair<bool, MoveCheckStatus> application;
 						if ((movingPiece.type == PieceType::KING || movingPiece.type == PieceType::ROOK) && (movingPiece.team == targetPiece.team))
@@ -334,7 +341,7 @@ int main(int argc, char** argv)
 
 						if (!application.first) application = state.tryApplyMove(m, false);
 						if (!application.first) std::cout << StringifyEnum(application.second) << "\n";
-						else std::cout << state.toFEN() << "\n";
+						else std::cout << state.toFEN() << "\n";*/
 
 						boardDrawCtx.activeSquare = std::nullopt;
 						boardDrawCtx.circlesAt.clear();
@@ -356,15 +363,15 @@ int main(int argc, char** argv)
 				SearchReturn search = state.findBestMove(params);
 				std::cout << " done in " << search.searchSeconds << " sec.\n";
 
-				if (search.bestMove.from.inBounds()) std::cout << "Engine chose: " << StringifyEnum(state.getPieceAt(search.bestMove.from).type) << " " << search.bestMove.toUCI() << "\n";
-				auto [applied, status] = state.tryApplyMove(search.bestMove);
-				state.updateStatus();
 				std::cout << search.toUCI() << "\n";
-				if (!applied)
+				if (search.bestMove.from.inBounds()) std::cout << "Engine chose: " << StringifyEnum(state.getPieceAt(search.bestMove.from).type) << " " << search.bestMove.toUCI() << "\n";
+				MoveResult result = state.tryMakeMove(search.bestMove);
+				if (!result.applied)
 				{
-					std::cerr << "Engine malfunction: chose illegal move: " << StringifyEnum(status) << "\n";
+					std::cerr << "Engine malfunction: chose illegal move: " << StringifyEnum(result.checkStatus) << "\n";
 					__debugbreak();
 				}
+				state.updateStatus();
 			}
 		}
 
