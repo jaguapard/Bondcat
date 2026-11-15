@@ -315,7 +315,7 @@ void GameState::getAllLegalMovesForPieceAt(Square sq, MoveList& ret)
 		if (isLegalMove(move) == MoveCheckStatus::LEGAL) ret.push_back(move);
 		if (movingPiece.type == PieceType::PAWN)
 		{
-			for (auto t : { MoveType::MOVE_AND_PROMOTE_TO_KNIGHT, MoveType::MOVE_AND_PROMOTE_TO_BISHOP, MoveType::MOVE_AND_PROMOTE_TO_ROOK, MoveType::MOVE_AND_PROMOTE_TO_QUEEN })
+			for (auto t : { MoveType::MOVE_AND_PROMOTE_TO_QUEEN, MoveType::MOVE_AND_PROMOTE_TO_ROOK, MoveType::MOVE_AND_PROMOTE_TO_BISHOP, MoveType::MOVE_AND_PROMOTE_TO_KNIGHT })
 			{
 				move.type = t;
 				if (isLegalMove(move) == MoveCheckStatus::LEGAL) ret.push_back(move);
