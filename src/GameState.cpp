@@ -37,15 +37,26 @@ SearchReturn GameState::findBestMove(SearchParams params)
 		int pieceCount = 0;
 		uint64_t whitePieces = 0, blackPieces = 0, kings = 0, queens = 0, rooks = 0, bishops = 0, knights = 0, pawns = 0;
 
-		for (int i = 0; i < 64; ++i)
+		//Fathom uses different convention!!!!
+		//Ours: a8=0, h8=7, ..., a1=56,h1=63
+		//Fathom: a1=0 (!), h1 = 7, a8 = 56, h8 = 63
+		int i = 0;
+		for (char rank = '1'; rank <= '8'; ++rank)
 		{
-			if (board[i].type == PieceType::EMPTY) continue;
+			for (char file = 'a'; file <= 'h'; ++file, ++i)
+			{
+				std::string s;
+				s.push_back(file);
+				s.push_back(rank);
+				Piece p = getPieceAt(Square(s));
+				
+				if (p.type == PieceType::EMPTY) continue;
 			++pieceCount;
-			bool black = (board[i].team == Team::BLACK);
-			bool white = (board[i].team == Team::WHITE);
+				bool black = (p.team == Team::BLACK);
+				bool white = (p.team == Team::WHITE);
 
 			uint64_t pieceMask = 1ull << i;
-			switch (board[i].type)
+				switch (p.type)
 			{
 			case PieceType::KING: kings |= pieceMask; break;
 			case PieceType::QUEEN: queens |= pieceMask; break;
@@ -60,6 +71,8 @@ SearchReturn GameState::findBestMove(SearchParams params)
 			if (white) whitePieces |= pieceMask;
 		}
 		if (pieceCount > TB_LARGEST || !castlingRights.nonePresent()) return false;
+		}
+
 
 		unsigned int tb_ret;
 		{
@@ -70,19 +83,22 @@ SearchReturn GameState::findBestMove(SearchParams params)
 		if (tb_ret == TB_RESULT_FAILED) return false;
 		if (tb_ret == TB_RESULT_CHECKMATE)
 		{
-			ret.evaluation = this->whitesTurn ? -INFINITY : INFINITY;
+			ret.evaluation = this->whitesTurn ? 10000 : -10000;
 			return true;
 		}
-		if (tb_ret == TB_RESULT_STALEMATE)
+		else if (tb_ret == TB_RESULT_STALEMATE)
 		{
 			ret.evaluation = 0;
 			return true;
 		}
+		else ret.evaluation = TB_GET_WDL(tb_ret);
 		//TB_GET_FROM, TB_GET_TO, TB_GET_PROMOTES, TB_GET_EP
 		int sqFrom = TB_GET_FROM(tb_ret);
 		int sqTo = TB_GET_TO(tb_ret);
-		Square from(sqFrom % 8, sqFrom / 8);
-		Square to(sqTo % 8, sqTo / 8);
+		
+
+		Square from(sqFrom % 8, 7 - sqFrom / 8);
+		Square to(sqTo % 8, 7 - sqTo / 8);
 		ret.bestMove.from = from;
 		ret.bestMove.to = to;
 		ret.bestMove.type = MoveType::MOVE_TO_SQUARE;
@@ -90,9 +106,6 @@ SearchReturn GameState::findBestMove(SearchParams params)
 		if (TB_GET_PROMOTES(tb_ret) == TB_PROMOTES_ROOK) ret.bestMove.type = MoveType::MOVE_AND_PROMOTE_TO_ROOK;
 		if (TB_GET_PROMOTES(tb_ret) == TB_PROMOTES_BISHOP) ret.bestMove.type = MoveType::MOVE_AND_PROMOTE_TO_BISHOP;
 		if (TB_GET_PROMOTES(tb_ret) == TB_PROMOTES_KNIGHT) ret.bestMove.type = MoveType::MOVE_AND_PROMOTE_TO_KNIGHT;
-		//Putting magic value here to avoid garbage evaluation. It is not used anyway, so I guess it can act as "using tables mode" signal to the user in the GUI
-		//TODO: interrogate WDL and set up it to proper number?
-		ret.evaluation = 69.42;
 		return true;
 		}();
 	
