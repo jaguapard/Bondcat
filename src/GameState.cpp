@@ -612,21 +612,21 @@ void GameState::rollbackMove(const MoveRollbackData& rollbackData)
 		CastlingSquares castlingSquares(rollbackData.move.type);
 		Piece rook = getPieceAt(castlingSquares.rookEnd);
 		Piece king = getPieceAt(castlingSquares.kingEnd);
+		getPieceAt(castlingSquares.kingEnd) = getPieceAt(castlingSquares.rookEnd) = {};
 		getPieceAt(castlingSquares.rookStart) = rook;
 		getPieceAt(castlingSquares.kingStart) = king;
 	}
 	else
 	{
-		Piece& movingPiece = getPieceAt(rollbackData.move.from);
-		Piece& targetPiece = getPieceAt(rollbackData.move.to);
-		movingPiece = targetPiece;
-		targetPiece = rollbackData.capturedPiece;
-		
+		Piece movedPiece = getPieceAt(rollbackData.move.to);
+		//Piece targetPiece = getPieceAt(rollbackData.move.to);
+
 		if (rollbackData.move.getPromotionTarget())
 		{
-			movingPiece = { PieceType::PAWN, movingPiece.team };
+			movedPiece = { PieceType::PAWN, movedPiece.team };
 		}
-
+		getPieceAt(rollbackData.move.from) = movedPiece;
+		getPieceAt(rollbackData.move.to) = rollbackData.capturedPiece;
 	}
 
 }
