@@ -295,22 +295,7 @@ void GameState::getAllLegalMovesForPieceAt(Square sq, MoveList& ret)
 	if (!sq.inBounds()) return;
 
 	Piece& movingPiece = getPieceAt(sq);
-	int ind = sq.toIndex();
-	const std::vector<Move> empty;
-	const auto& cand = [&]() -> const auto& {
-		switch (movingPiece.type)
-		{
-		case PieceType::PAWN: return Globals::pawnAttacks[ind];
-		case PieceType::KNIGHT: return Globals::knightAttacks[ind];
-		case PieceType::BISHOP: return Globals::bishopAttacks[ind];
-		case PieceType::ROOK: return Globals::rookAttacks[ind];
-		case PieceType::QUEEN: return Globals::queenAttacks[ind];
-		case PieceType::KING: return Globals::kingAttacks[ind];
-		default: return empty; //would this be dangling reference?
-		}
-	}();
-
-	for (auto move : cand)
+	for (auto move : Globals::getPieceMoveCandidates(sq, movingPiece.type))
 	{
 		if (isLegalMove(move) == MoveCheckStatus::LEGAL) ret.push_back(move);
 		if (movingPiece.type == PieceType::PAWN)

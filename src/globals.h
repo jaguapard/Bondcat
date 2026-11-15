@@ -6,6 +6,5 @@
 struct Globals
 {
 	static inline std::mutex tablebase_mutex;
-
-	static inline std::vector<std::vector<Move>> pawnAttacks, knightAttacks, bishopAttacks, rookAttacks, queenAttacks, kingAttacks;
+	static const std::vector<Move>& getPieceMoveCandidates(Square from, PieceType type);
 };
