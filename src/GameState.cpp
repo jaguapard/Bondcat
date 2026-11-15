@@ -549,6 +549,9 @@ MoveRollbackData GameState::makeMove(const Move& move)
 		Piece& movingPiece = getPieceAt(move.from);
 		Piece& dstPiece = getPieceAt(move.to);
 		rollback.capturedPiece = dstPiece;
+		rollback.capturedPieceSq = move.to;
+		rollback.movingPiece = movingPiece;
+		rollback.movingPieceSq = move.from;
 
 		if (dstPiece.type != PieceType::EMPTY && dstPiece.team != movingPiece.team) this->halfmoves = 0;
 		bool black = movingPiece.team == Team::BLACK;
@@ -580,7 +583,9 @@ MoveRollbackData GameState::makeMove(const Move& move)
 			}
 			else if (enpassant && move.to == *enpassant)
 			{
-				getPieceAt(Square(enpassant->x, enpassant->y - forwardForMovingPawn)) = {};
+				Square enpassantCapturedSq = Square(enpassant->x, enpassant->y - forwardForMovingPawn);
+				rollback.capturedPieceSq = enpassantCapturedSq;
+				getPieceAt(enpassantCapturedSq) = {};
 			}
 		}
 
@@ -618,15 +623,13 @@ void GameState::rollbackMove(const MoveRollbackData& rollbackData)
 	}
 	else
 	{
-		Piece movedPiece = getPieceAt(rollbackData.move.to);
-		//Piece targetPiece = getPieceAt(rollbackData.move.to);
-
+		Piece movedPiece = rollbackData.movingPiece;
 		if (rollbackData.move.getPromotionTarget())
 		{
 			movedPiece = { PieceType::PAWN, movedPiece.team };
 		}
-		getPieceAt(rollbackData.move.from) = movedPiece;
-		getPieceAt(rollbackData.move.to) = rollbackData.capturedPiece;
+		getPieceAt(rollbackData.capturedPieceSq) = rollbackData.capturedPiece;
+		getPieceAt(rollbackData.movingPieceSq) = movedPiece;
 	}
 
 }
