@@ -186,8 +186,8 @@ void UCI()
 			ss.str(cmd.substr(3));
 			while (ss >> token) if (token == "depth") ss >> params.maxDepth;
 
-			SearchReturn mv = gameState.findBestMove(params);
-			std::cout << mv.toUCI() << "\n";
+			SearchReturn search = gameState.findBestMove(params);
+			std::cout << search.toUCI() << "\n";
 		}
 		if (cmd == "quit") return;
 	}

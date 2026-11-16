@@ -122,6 +122,7 @@ SearchReturn GameState::findBestMove(SearchParams params)
 	uint64_t searchEndNs = SDL_GetTicksNS();
 	ret.searchSeconds = (searchEndNs - searchStartNs) / 1e9;
 	ret.nodesPerSecond = ret.nodesSearched / ret.searchSeconds;
+	ret.depth = params.maxDepth;
 	return ret;
 }
 
@@ -776,7 +777,7 @@ std::string SearchReturn::toUCI() const
 	std::stringstream ss;
 	int evalScore = evaluation * 100;
 	int reportedScore = evalScore;
-	ss << "info nodes " << nodesSearched << " nps " << uint64_t(nodesPerSecond) << " score ";
+	ss << "info depth " << depth << " nodes " << nodesSearched << " nps " << uint64_t(nodesPerSecond) << " score ";
 	if (abs(evaluation) > 1000) //mate
 	{
 		int mateIn = (10000 - abs(evaluation)) / 2;

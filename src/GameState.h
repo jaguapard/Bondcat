@@ -38,7 +38,7 @@ struct SearchReturn
 	float evaluation = 0;
 	std::optional<int> mateIn;
 	
-	uint64_t nodesSearched = 0;
+	uint64_t nodesSearched = 0, depth;
 	double searchSeconds, nodesPerSecond;
 	std::string toUCI() const;
 };
