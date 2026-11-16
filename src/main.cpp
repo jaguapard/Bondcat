@@ -237,6 +237,7 @@ int main(int argc, char** argv)
 		//state = GameState::fromFEN("rnb1k2r/pppp1p1p/3b1q2/3P1p2/3N4/6PB/PPP4P/R1BQK2R b KQkq - 0 11"); //wrong checks
 		//state = GameState::fromFEN("8/kQ6/2K5/8/8/8/8/8 b - - 6 61"); //mate garbage
 		//state = GameState::fromFEN("8/8/8/2k5/4b1p1/5q2/p1p4K/8 b - - 97 533"); //mate avoidance, here black can mate with Qg2# or Qf2# but choses to delay
+		//state = GameState::fromFEN("6nn/p1p1p1p1/1p1p1p1p/8/8/2k5/K1p5/8 b - - 0 1"); //underpromotion test: promoting to queen is stalemate. More pieces to avoid endgame lookup. ...c1=R, then king only has Ka3, Ra1#
 
 		float minDim = std::min(w, h);
 		BoardView boardView({ 0,0,minDim,minDim }, 8, 8);
