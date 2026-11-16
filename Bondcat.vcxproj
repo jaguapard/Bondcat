@@ -21,7 +21,7 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>18.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{9454934A-BE02-41BC-95D4-5FC75352EF45}</ProjectGuid>
+    <ProjectGuid>{69075CBC-473F-9C54-21D7-BAA85106D375}</ProjectGuid>
     <RootNamespace>ChessEngine</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
     <ProjectName>Bondcat</ProjectName>
