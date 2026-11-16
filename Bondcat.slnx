@@ -1,9 +1,10 @@
 <Solution>
   <Configurations>
     <BuildType Name="Debug" />
+    <BuildType Name="RelClang" />
     <BuildType Name="Release" />
     <BuildType Name="RelTournament" />
     <Platform Name="x64" />
   </Configurations>
-  <Project Path="Chess Engine.vcxproj" Id="9bdad56b-b35d-4500-a839-6416ca7e0613" />
+  <Project Path="Bondcat.vcxproj" />
 </Solution>

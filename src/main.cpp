@@ -23,10 +23,7 @@
 #undef main
 
 #include <string_view>
-#include "BondcatException.h"
-
-int Globals::tablebase_max_pieces = INT32_MIN;
-std::mutex Globals::tablebase_mutex; 
+#include "BondcatException.h" 
 
 std::string StringifyEnum(MoveCheckStatus status)
 {
@@ -99,10 +96,26 @@ std::string StringifyEnum(GameStatus status)
 	}
 }
 
+std::string StringifyEnum(PieceType type)
+{
+	using enum PieceType;
+	switch (type)
+	{
+	case PieceType::PAWN: return "Pawn";
+	case PieceType::KNIGHT: return "Knight";
+	case PieceType::BISHOP: return "Bishop";
+	case PieceType::ROOK: return "Rook";
+	case PieceType::QUEEN: return "Queen";
+	case PieceType::KING: return "King";
+	case PieceType::EMPTY: return "Empty piece type";
+	default: return "Unknown PieceType value: " + std::to_string(int(type));
+	}
+}
+
 void UCI()
 {
 	GameState gameState;
-	std::string idString = "id name Bondcat v0.2: Ant\nid author jaguapard\nuciok\n";
+	std::string idString = "id name Bondcat v0.3: Bee\nid author jaguapard\nuciok\n";
 	std::cout << idString;
 	while (true)
 	{
@@ -129,7 +142,7 @@ void UCI()
 			}
 
 			if (acc.substr(0, 8) == "startpos") gameState.reset();
-			else if (acc.substr(0, 3) == "fen") gameState = GameState::fromFEN(acc);
+			else if (acc.substr(0, 3) == "fen") gameState = GameState::fromFEN(acc.substr(4));
 
 			std::string moveStr;
 			while (ss >> moveStr)
@@ -157,8 +170,8 @@ void UCI()
 					else throw BondcatException("UCI wrong castling: " + moveStr);
 				}
 
-				auto [applied, status] = gameState.tryApplyMove(move);
-				if (!applied) throw BondcatException("UCI illegal move: " + StringifyEnum(status));
+				MoveResult result = gameState.tryMakeMove(move);
+				if (!result.applied) throw BondcatException("UCI illegal move: " + StringifyEnum(result.checkStatus));
 				gameState.updateStatus();
 			}
 		}
@@ -166,25 +179,30 @@ void UCI()
 		if (cmd.substr(0, 2) == "go")
 		{
 			SearchParams params;
-			params.maxDepth = 3;
+			params.maxDepth = 5;
 
 			std::string token = "";
 			std::stringstream ss;
 			ss.str(cmd.substr(3));
 			while (ss >> token) if (token == "depth") ss >> params.maxDepth;
 
-			SearchReturn mv = gameState.findBestMove(params, 1);
-
-			int evalScore = mv.evaluation * 100;
-			int reportedScore = gameState.whitesTurn ? evalScore : -evalScore;
-			std::cout << "info score cp " << reportedScore << " nodes " << mv.nodesSearched << " nps " << uint64_t(mv.nodesPerSecond) << "\n";
-			std::cout << "bestmove " << mv.bestMove.toUCI() << "\n";
+			SearchReturn search = gameState.findBestMove(params);
+			std::cout << search.toUCI() << "\n";
 		}
 		if (cmd == "quit") return;
 	}
 }
+
+struct Sentinel
+{
+	~Sentinel()
+	{
+		tb_free();
+	}
+};
 int main(int argc, char** argv)
 {
+	Sentinel tablebaseNannyDontRemoveMe;
 	bool tablebaseLoaded = [&]()
 	{
 		const char* tableBasePath = getenv("BONDCAT_ENDGAME_TABLES_PATH");
@@ -222,6 +240,13 @@ int main(int argc, char** argv)
 		//state = GameState::fromFEN("1k4n1/6PP/4R3/1p6/1P6/8/P1K5/8 b kq - 0 56");
 		//state = GameState::fromFEN("8/8/8/2K2k2/8/8/8/8 w - - 0 1"); //king vs king test
 		//state = GameState::fromFEN("8/8/1k6/5N2/1r6/6B1/5K2/8 b - - 0 1"); //5-piece endgame test
+		//state = GameState::fromFEN("7k/5K2/6Q1/8/8/8/8/8 w - - 0 1"); //checkmate detection test
+		//state = GameState::fromFEN("rnb1kb1r/pp1ppppp/8/2qpP3/5P2/5N2/PPPPQ1PP/R1B1KB1R b KQk - 1 7"); //another queen blunder
+		//state = GameState::fromFEN("rnb1kb1r/pp1ppppp/8/3pP3/3P1P2/5N2/PPq1Q1PP/R1B1KB1R b KQk d3 0 8"); //direct followup of queen blunder
+		//state = GameState::fromFEN("rnb1k2r/pppp1p1p/3b1q2/3P1p2/3N4/6PB/PPP4P/R1BQK2R b KQkq - 0 11"); //wrong checks
+		//state = GameState::fromFEN("8/kQ6/2K5/8/8/8/8/8 b - - 6 61"); //mate garbage
+		//state = GameState::fromFEN("8/8/8/2k5/4b1p1/5q2/p1p4K/8 b - - 97 533"); //mate avoidance, here black can mate with Qg2# or Qf2# but choses to delay
+		//state = GameState::fromFEN("6nn/p1p1p1p1/1p1p1p1p/8/8/2k5/K1p5/8 b - - 0 1"); //underpromotion test: promoting to queen is stalemate. More pieces to avoid endgame lookup. ...c1=R, then king only has Ka3, Ra1#
 
 		float minDim = std::min(w, h);
 		BoardView boardView({ 0,0,minDim,minDim }, 8, 8);
@@ -261,7 +286,7 @@ int main(int argc, char** argv)
 		boardDrawCtx.gameState = &state;
 		boardDrawCtx.textures = &pieceTextures;
 		SearchParams params;
-		params.maxDepth = 3;
+		params.maxDepth = 4;
 		while (true)
 		{
 			SDL_Event event;
@@ -275,11 +300,16 @@ int main(int argc, char** argv)
 					auto clickedAtSquare = boardView.squareAt(p);
 					if (!boardDrawCtx.activeSquare)
 					{
-						boardDrawCtx.activeSquare = clickedAtSquare;
-						boardDrawCtx.circlesAt.clear();
-						for (auto& move : state.getAllLegalMovesForPieceAt(*boardDrawCtx.activeSquare))
+						if (clickedAtSquare.inBounds() && state.getPieceAt(clickedAtSquare).type != PieceType::EMPTY)
 						{
-							boardDrawCtx.circlesAt.push_back({ move.to.x, move.to.y });
+							boardDrawCtx.activeSquare = clickedAtSquare;
+							boardDrawCtx.circlesAt.clear();
+							MoveList legalMoves;
+							state.getAllLegalMovesForPieceAt(*boardDrawCtx.activeSquare, legalMoves);
+							for (auto& move : legalMoves)
+							{
+								boardDrawCtx.circlesAt.push_back({ move.to.x, move.to.y });
+							}
 						}
 					}
 					else
@@ -299,30 +329,35 @@ int main(int argc, char** argv)
 							m.type = MoveType::MOVE_AND_PROMOTE_TO_QUEEN;
 						}
 
-						using enum MoveType;
-						std::pair<bool, MoveCheckStatus> application;
-						if ((movingPiece.type == PieceType::KING || movingPiece.type == PieceType::ROOK) && (movingPiece.team == targetPiece.team))
+						MoveResult result;
+						result.applied = false;
+						if (((movingPiece.type == PieceType::KING && targetPiece.type == PieceType::ROOK) || (movingPiece.type == PieceType::ROOK && targetPiece.type == PieceType::KING)) && movingPiece.team == targetPiece.team)
 						{
-							Move copy = m;
-							std::array<MoveType, 2> castles = { BLACK_KINGSIDE_CASTLE, BLACK_QUEENSIDE_CASTLE };
-							if (movingPiece.team == Team::WHITE) castles = { WHITE_KINGSIDE_CASTLE, WHITE_QUEENSIDE_CASTLE };
-							for (auto ct : castles)
+							Square rookSq = movingPiece.type == PieceType::ROOK ? m.from : m.to;
+							Square kingSq = movingPiece.type == PieceType::ROOK ? m.to : m.from;
+							for (auto ct : { MoveType::WHITE_KINGSIDE_CASTLE, MoveType::WHITE_QUEENSIDE_CASTLE, MoveType::BLACK_KINGSIDE_CASTLE, MoveType::BLACK_QUEENSIDE_CASTLE })
 							{
-								m.type = ct;
-								application = state.tryApplyMove(m, false);
-								if (application.first) break;
+								CastlingSquares sqrs(ct);
+								if (kingSq == sqrs.kingStart && rookSq == sqrs.rookStart)
+								{
+									Move castle;
+									castle.type = ct;
+									result = state.tryMakeMove(castle);
+									if (result.applied) break;
+								}
 							}
-							m = copy;
 						}
-
-						if (!application.first) application = state.tryApplyMove(m, false);
-						if (!application.first) std::cout << StringifyEnum(application.second) << "\n";
+						
+						if (!result.applied) result = state.tryMakeMove(m); //castlings failed, so try a normal move/promotion
+						if (!result.applied)
+						{
+							std::cout << StringifyEnum(result.checkStatus) << "\n";
+						}
 						else std::cout << state.toFEN() << "\n";
 
 						boardDrawCtx.activeSquare = std::nullopt;
 						boardDrawCtx.circlesAt.clear();
 						state.updateStatus();
-						if (state.gameStatus != GameStatus::ONGOING) std::cout << "GAME OVER: " << StringifyEnum(*state.gameStatus) << "\n";
 					}
 				}
 			}
@@ -335,11 +370,22 @@ int main(int argc, char** argv)
 
 			if (!state.whitesTurn)
 			{
-				SearchReturn search = state.findBestMove(params, 1);
-				state.tryApplyMove(search.bestMove);
+				std::cout << "Engine thinking...";
+				SearchReturn search = state.findBestMove(params);
+				std::cout << " done in " << search.searchSeconds << " sec.\n";
+
+				std::cout << search.toUCI() << "\n";
+				if (search.bestMove.from.inBounds()) std::cout << "Engine chose: " << StringifyEnum(state.getPieceAt(search.bestMove.from).type) << " " << search.bestMove.toUCI() << "\n";
+				MoveResult result = state.tryMakeMove(search.bestMove);
+				if (!result.applied)
+				{
+					std::cerr << "Engine malfunction: chose illegal move: " << StringifyEnum(result.checkStatus) << "\n";
+					__debugbreak();
+				}
 				state.updateStatus();
-				std::cout << "Eval: " << search.evaluation << ", " << search.nodesSearched << " nodes searched in " << search.searchSeconds << " s (" << search.nodesPerSecond << " nps)\n";
 			}
+
+			if (*state.gameStatus != GameStatus::ONGOING) std::cout << "GAME OVER: " << StringifyEnum(*state.gameStatus) << "\n";
 		}
 
 		//auto legal = state.getAllLegalMoves();
@@ -355,6 +401,4 @@ int main(int argc, char** argv)
 		std::cerr << "std exception: " << e.what() << "\n";
 		return -1;
 	}
-
-	tb_free();
 }

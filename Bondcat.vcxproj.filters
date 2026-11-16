@@ -36,6 +36,12 @@
     <ClCompile Include="lib\fathom\tbprobe.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\FEN_Codec.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\globals.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Piece.h">
@@ -59,11 +65,19 @@
     <ClInclude Include="src\globals.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\FEN_Codec.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\StaticArray.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\BondcatException.h">
       <Filter>Header Files</Filter>
     </None>
-    <None Include=".github\copilot-instructions.md" />
+    <None Include="CHANGELOG.md">
+      <Filter>Resource Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

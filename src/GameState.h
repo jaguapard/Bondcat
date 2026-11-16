@@ -8,7 +8,8 @@
 #include <assert.h>
 #include <chrono>
 #include <map>
-
+#include "StaticArray.h"
+#include "FEN_Codec.h"
 /*
 struct LegalMoves
 {
@@ -37,23 +38,52 @@ struct SearchReturn
 	float evaluation = 0;
 	std::optional<int> mateIn;
 	
-	uint64_t nodesSearched = 0;
+	uint64_t nodesSearched = 0, depth;
 	double searchSeconds, nodesPerSecond;
+	bool endgameTablebaseHit;
+
+	std::string toUCI() const;
 };
 
 struct CompressedPosition
 {
 	CompressedPosition() = default;
 
-	std::array<uint64_t, 4> bits;
+	std::array<uint64_t, 8> bits;
 	CompressedPosition(const std::array<Piece, 64>& board);
 	bool operator<(const CompressedPosition& other) const;
 };
+
+struct MoveRollbackData
+{
+	CastlingRights castlingRights; //castling rights before the move
+	std::optional<Square> enpassant; //en passant square before the move
+	uint32_t halfmoves, fullmoves;
+	std::array<Piece, 64> board;
+};
+
+struct MoveResult
+{
+	bool applied;
+	MoveCheckStatus checkStatus;
+	MoveRollbackData rollbackData;
+};
+
+struct CastlingSquares
+{
+	Square kingStart, kingEnd, rookStart, rookEnd;
+	CastlingSquares(MoveType type);
+};
+typedef StaticArray<Move, 4100> MoveList;
 struct GameState
 {
+public:
+	SearchReturn findBestMove(SearchParams params);
+private:
+	SearchReturn findBestMoveInner(int remainingDepth, float alpha, float beta, const SearchParams& params);
+public:
 	std::array<Piece, 64> board;
-	bool blackCanQueensideCastle = false, blackCanKingsideCastle = false;
-	bool whiteCanQueensideCastle = false, whiteCanKingsideCastle = false;
+	CastlingRights castlingRights;
 	bool whitesTurn;
 	int halfmoves, fullmoves;
 	std::optional<Square> enpassant;
@@ -61,7 +91,6 @@ struct GameState
 	std::optional<GameStatus> gameStatus;
 	std::map<CompressedPosition, int> seenPositions;
 
-	SearchReturn findBestMove(const SearchParams& params, int currDepth);
 	static GameState newGame();
 
 	void updateStatus();
@@ -69,8 +98,8 @@ struct GameState
 	//Resets the game state to the standard starting position
 	void reset();
 
-	std::vector<Move> getAllLegalMoves();
-	std::vector<Move> getAllLegalMovesForPieceAt(Square sq);
+	void getAllLegalMoves(MoveList& ret);
+	void getAllLegalMovesForPieceAt(Square sq, MoveList& ret);
 
 	Piece& getPieceAt(Square s);
 	//const Piece& getPieceAt(int x, int y) const;
@@ -118,8 +147,7 @@ struct GameState
 	//Throws an exception if team is NONE
 	bool isTeamsKingChecked(Team team);
 
-	//@brief Attempts to apply a move to the current game state. If the attempt was successfull, applies the move and advances game state by one ply.
-	//@return First element of the pair is true if move was successfully applied (due to being legal or legality check skipped), or false otherwise.
-	//Second element of the pair returns the corresponding status
-	std::pair<bool, MoveCheckStatus> tryApplyMove(Move m, bool skipValidation = false);
+	MoveResult tryMakeMove(const Move& move); //Applies move if it is legal 
+	MoveRollbackData makeMove(const Move& move); //Applies move without validation
+	void rollbackMove(const MoveRollbackData& rollbackData); //rolls back move. Only supports rolling back the last move applied.
 };
