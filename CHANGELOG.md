@@ -27,3 +27,19 @@ Small, but hard-working and achieving decent results.
 #### GUI
 - Fixed funky castling (previously could castle you wrong way), now can also castle by "moving" rook to king, not just king to rook
 - Fixed game state not being checked after black's move
+
+## v0.2: Ant
+### Features
+#### General
+- Endgame tablebase probing (optional, define `BONDCAT_ENDGAME_TABLES_PATH` to Syzygy tablebases folder, both DTZ and WDL required). If path is inaccessible or tablebases not present, this feature is disabled.
+- Added 3-fold and 50-move rule draw detection
+- Evaluation function now also increases by 0.02 for every legal move in position
+#### UCI
+- Added search stats display
+#### Bugfixes
+- Fixed wrong checkmate detection
+- Fixed king sometimes moving illegally
+- Fixed crashing on UCI castling
+
+## v0.1: Newborn
+Defenseless, but aspiring. Initial release, knows basic rules, can perform in UCI tournaments, performs primitive searches, but plagued with crashes and outputting illegal moves.
