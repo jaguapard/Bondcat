@@ -142,7 +142,7 @@ void UCI()
 			}
 
 			if (acc.substr(0, 8) == "startpos") gameState.reset();
-			else if (acc.substr(0, 3) == "fen") gameState = GameState::fromFEN(acc);
+			else if (acc.substr(0, 3) == "fen") gameState = GameState::fromFEN(acc.substr(4));
 
 			std::string moveStr;
 			while (ss >> moveStr)
