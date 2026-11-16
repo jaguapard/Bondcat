@@ -319,32 +319,31 @@ int main(int argc, char** argv)
 							m.type = MoveType::MOVE_AND_PROMOTE_TO_QUEEN;
 						}
 
-						MoveResult result = state.tryMakeMove(m);
+						MoveResult result;
+						result.applied = false;
+						if (((movingPiece.type == PieceType::KING && targetPiece.type == PieceType::ROOK) || (movingPiece.type == PieceType::ROOK && targetPiece.type == PieceType::KING)) && movingPiece.team == targetPiece.team)
+						{
+							Square rookSq = movingPiece.type == PieceType::ROOK ? m.from : m.to;
+							Square kingSq = movingPiece.type == PieceType::ROOK ? m.to : m.from;
+							for (auto ct : { MoveType::WHITE_KINGSIDE_CASTLE, MoveType::WHITE_QUEENSIDE_CASTLE, MoveType::BLACK_KINGSIDE_CASTLE, MoveType::BLACK_QUEENSIDE_CASTLE })
+							{
+								CastlingSquares sqrs(ct);
+								if (kingSq == sqrs.kingStart && rookSq == sqrs.rookStart)
+								{
+									Move castle;
+									castle.type = ct;
+									result = state.tryMakeMove(castle);
+									if (result.applied) break;
+								}
+							}
+						}
+						
+						if (!result.applied) result = state.tryMakeMove(m); //castlings failed, so try a normal move/promotion
 						if (!result.applied)
 						{
 							std::cout << StringifyEnum(result.checkStatus) << "\n";
 						}
 						else std::cout << state.toFEN() << "\n";
-						/*
-						using enum MoveType;
-						std::pair<bool, MoveCheckStatus> application;
-						if ((movingPiece.type == PieceType::KING || movingPiece.type == PieceType::ROOK) && (movingPiece.team == targetPiece.team))
-						{
-							Move copy = m;
-							std::array<MoveType, 2> castles = { BLACK_KINGSIDE_CASTLE, BLACK_QUEENSIDE_CASTLE };
-							if (movingPiece.team == Team::WHITE) castles = { WHITE_KINGSIDE_CASTLE, WHITE_QUEENSIDE_CASTLE };
-							for (auto ct : castles)
-							{
-								m.type = ct;
-								application = state.tryApplyMove(m, false);
-								if (application.first) break;
-							}
-							m = copy;
-						}
-
-						if (!application.first) application = state.tryApplyMove(m, false);
-						if (!application.first) std::cout << StringifyEnum(application.second) << "\n";
-						else std::cout << state.toFEN() << "\n";*/
 
 						boardDrawCtx.activeSquare = std::nullopt;
 						boardDrawCtx.circlesAt.clear();
