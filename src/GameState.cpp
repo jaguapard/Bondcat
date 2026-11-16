@@ -6,6 +6,9 @@
 #include <tbprobe.h>
 #include "globals.h"
 
+#pragma warning(push)
+#pragma warning(disable : 6262) //"This function uses X bytes of stack, consider moving to heap"
+
 constexpr std::array<float, 64> knightMult = {
 	0.3, 0.4, 0.5, 0.6, 0.6, 0.5, 0.4, 0.3,
 	0.5, 0.6, 0.6, 0.7, 0.7, 0.6, 0.5, 0.4,
@@ -806,3 +809,5 @@ CastlingSquares::CastlingSquares(MoveType type)
 		break;
 	}
 }
+
+#pragma warning(pop) //restore too much stack usage warn
