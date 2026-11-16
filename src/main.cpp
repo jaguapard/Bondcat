@@ -179,7 +179,7 @@ void UCI()
 		if (cmd.substr(0, 2) == "go")
 		{
 			SearchParams params;
-			params.maxDepth = 3;
+			params.maxDepth = 5;
 
 			std::string token = "";
 			std::stringstream ss;
