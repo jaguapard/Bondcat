@@ -133,18 +133,40 @@ SearchReturn GameState::findBestMoveInner(int remainingDepth, float alpha, float
 {
 	SearchReturn ret;
 	ret.nodesSearched++;
-	if (remainingDepth > 0)
+
+	std::optional<float> terminalNodeEvalFromWhitesPerspective; //this will be used for game-ended and search out of depth nodes
+	//First, see if we're already done before any search
+	if (*this->gameStatus != GameStatus::ONGOING)
+	{
+		//if (remainingDepth > 0) __debugbreak();
+		float mateScore = 10000 - params.maxDepth + remainingDepth; //TODO: can change it to fullmove clock?
+		switch (*this->gameStatus)
+		{
+		case GameStatus::WHITE_WON_BY_CHECKMATE:
+			terminalNodeEvalFromWhitesPerspective = mateScore; break;
+		case GameStatus::BLACK_WON_BY_CHECKMATE:
+			terminalNodeEvalFromWhitesPerspective = -mateScore; break;
+		case GameStatus::DRAW_STALEMATE:
+		case GameStatus::DRAW_THREEFOLD_REPETITION:
+		case GameStatus::DRAW_INSUFFICIENT_MATERIAL:
+			terminalNodeEvalFromWhitesPerspective = 0.f; break;
+		default: break;
+		}
+	}
+	else if (remainingDepth > 0) //else if there's depth remaining, search recursively
 	{
 		MoveList moves;
 		getAllLegalMoves(moves);
 		ret.evaluation = -INFINITY;
 		for (auto& move : moves)
 		{
+			//if (move.from == Square("f3") && move.to == Square("g2")) __debugbreak();
 			auto rollback = this->makeMove(move);
 			this->updateStatus();
 
-			SearchReturn subsearch = findBestMoveInner(gameStatus != GameStatus::ONGOING ? 0 : remainingDepth - 1, -beta, -alpha, params);
+			SearchReturn subsearch = findBestMoveInner(remainingDepth - 1, -beta, -alpha, params);
 			ret.nodesSearched += subsearch.nodesSearched;
+			//in main search (not game-ended), the algorithm immediately returns current player's advantage, so no need to change it
 			if (-subsearch.evaluation > ret.evaluation) ret.bestMove = move;
 			ret.evaluation = std::max(-subsearch.evaluation, ret.evaluation);
 			alpha = std::max(alpha, ret.evaluation);
@@ -152,30 +174,11 @@ SearchReturn GameState::findBestMoveInner(int remainingDepth, float alpha, float
 			this->rollbackMove(rollback);
 			if (alpha >= beta) break;
 		}
-		return ret;
 	}
-	else
+	else //out of depth AND not game-ended, evaluate position
 	{
 		//negative for black advantage, positive for white advantage. Negamax expects it to be positive for current side advantaged, so it'll be adjusted later
-		float neutralEval = [&]() -> float {
-			switch (*this->gameStatus)
-			{
-			//case GameStatus::WHITE_WON_BY_TIME:
-			case GameStatus::WHITE_WON_BY_CHECKMATE:
-			//case GameStatus::WHITE_WON_ENEMY_RESIGNED:
-				return 10000 - (params.maxDepth - remainingDepth);
-			//case GameStatus::BLACK_WON_BY_TIME:
-			case GameStatus::BLACK_WON_BY_CHECKMATE:
-			//case GameStatus::BLACK_WON_ENEMY_RESIGNED:
-				return -(10000 - (params.maxDepth - remainingDepth));
-			//case GameStatus::DRAW_ACCEPTED:
-			case GameStatus::DRAW_STALEMATE:
-			case GameStatus::DRAW_THREEFOLD_REPETITION:
-			case GameStatus::DRAW_INSUFFICIENT_MATERIAL:
-				return 0.f;
-			default: break;
-			}
-
+		terminalNodeEvalFromWhitesPerspective = [&]() -> float {
 			float whiteScore = 0, blackScore = 0;
 			MoveList moves;
 			this->getAllLegalMoves(moves);
@@ -206,9 +209,10 @@ SearchReturn GameState::findBestMoveInner(int remainingDepth, float alpha, float
 			}
 			return whiteScore - blackScore;
 		}();
-
-		ret.evaluation = whitesTurn ? neutralEval : -neutralEval;
 	}
+
+	//override whatever lies in ret.evaluation if we have override for that (terminal nodes)
+	if (terminalNodeEvalFromWhitesPerspective) ret.evaluation = whitesTurn ? *terminalNodeEvalFromWhitesPerspective : -*terminalNodeEvalFromWhitesPerspective;
 	return ret;
 }
 
