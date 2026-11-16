@@ -349,7 +349,6 @@ int main(int argc, char** argv)
 						boardDrawCtx.activeSquare = std::nullopt;
 						boardDrawCtx.circlesAt.clear();
 						state.updateStatus();
-						if (state.gameStatus != GameStatus::ONGOING) std::cout << "GAME OVER: " << StringifyEnum(*state.gameStatus) << "\n";
 					}
 				}
 			}
@@ -376,6 +375,8 @@ int main(int argc, char** argv)
 				}
 				state.updateStatus();
 			}
+
+			if (*state.gameStatus != GameStatus::ONGOING) std::cout << "GAME OVER: " << StringifyEnum(*state.gameStatus) << "\n";
 		}
 
 		//auto legal = state.getAllLegalMoves();
