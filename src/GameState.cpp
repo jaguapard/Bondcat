@@ -128,6 +128,14 @@ SearchReturn GameState::findBestMove(SearchParams params)
 	ret.nodesPerSecond = ret.nodesSearched / ret.searchSeconds;
 	ret.depth = params.maxDepth;
 	ret.endgameTablebaseHit = endgameTablebaseHit;
+
+	if (abs(ret.evaluation) >= 1000)
+	{
+		int matePlies = 10000 - abs(ret.evaluation);
+		int mateMoves = (matePlies + 1) / 2;
+		ret.mateIn = ret.evaluation > 0 ? mateMoves : -mateMoves;
+	}
+
 	return ret;
 }
 
@@ -787,13 +795,9 @@ std::string SearchReturn::toUCI() const
 	int evalScore = evaluation * 100;
 	int reportedScore = evalScore;
 	ss << "info depth " << depth << " nodes " << nodesSearched << " nps " << uint64_t(nodesPerSecond) << " score ";
-	if (abs(evaluation) > 1000) //mate
-	{
-		int mateIn = (10000 - abs(evaluation)) / 2;
-		if (evaluation < 0) ss << "mate " << mateIn;
-		else ss << "mate " << -mateIn;
-	}
+	if (mateIn) ss << "mate " << *mateIn;
 	else ss << "cp " << reportedScore;
+
 	ss << "\nbestmove " << bestMove.toUCI();
 	return ss.str();
 }
