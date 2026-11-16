@@ -40,6 +40,8 @@ struct SearchReturn
 	
 	uint64_t nodesSearched = 0, depth;
 	double searchSeconds, nodesPerSecond;
+	bool endgameTablebaseHit;
+
 	std::string toUCI() const;
 };
 

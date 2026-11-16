@@ -35,7 +35,7 @@ SearchReturn GameState::findBestMove(SearchParams params)
 	uint64_t searchStartNs = SDL_GetTicksNS();
 	bool shouldReturn = false;
 	
-	bool endgameTableHit = [&]() {
+	bool endgameTablebaseHit = [&]() {
 		//The root node sets up the search start time and checks for tablebase hits, if any.
 		int pieceCount = 0;
 		uint64_t whitePieces = 0, blackPieces = 0, kings = 0, queens = 0, rooks = 0, bishops = 0, knights = 0, pawns = 0;
@@ -112,7 +112,7 @@ SearchReturn GameState::findBestMove(SearchParams params)
 		return true;
 		}();
 	
-	if (!endgameTableHit)
+	if (!endgameTablebaseHit)
 	{
 		//Yes, maxDepth shouldn't be decremented, since we didn't perform any search here yet. 
 		//This function only checks endgame tables, sets up initial search and manages the feedback to UCI/GUI
@@ -126,6 +126,7 @@ SearchReturn GameState::findBestMove(SearchParams params)
 	ret.searchSeconds = (searchEndNs - searchStartNs) / 1e9;
 	ret.nodesPerSecond = ret.nodesSearched / ret.searchSeconds;
 	ret.depth = params.maxDepth;
+	ret.endgameTablebaseHit = endgameTablebaseHit;
 	return ret;
 }
 
