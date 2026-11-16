@@ -52,35 +52,36 @@ SearchReturn GameState::findBestMove(SearchParams params)
 				s.push_back(file);
 				s.push_back(rank);
 				Piece p = getPieceAt(Square(s));
-				
+
 				if (p.type == PieceType::EMPTY) continue;
-			++pieceCount;
+				++pieceCount;
 				bool black = (p.team == Team::BLACK);
 				bool white = (p.team == Team::WHITE);
 
-			uint64_t pieceMask = 1ull << i;
+				uint64_t pieceMask = 1ull << i;
 				switch (p.type)
-			{
-			case PieceType::KING: kings |= pieceMask; break;
-			case PieceType::QUEEN: queens |= pieceMask; break;
-			case PieceType::ROOK: rooks |= pieceMask; break;
-			case PieceType::BISHOP: bishops |= pieceMask; break;
-			case PieceType::KNIGHT: knights |= pieceMask; break;
-			case PieceType::PAWN: pawns |= pieceMask; break;
-			default:
-				break;
+				{
+				case PieceType::KING: kings |= pieceMask; break;
+				case PieceType::QUEEN: queens |= pieceMask; break;
+				case PieceType::ROOK: rooks |= pieceMask; break;
+				case PieceType::BISHOP: bishops |= pieceMask; break;
+				case PieceType::KNIGHT: knights |= pieceMask; break;
+				case PieceType::PAWN: pawns |= pieceMask; break;
+				default:
+					break;
+				}
+				if (black) blackPieces |= pieceMask;
+				if (white) whitePieces |= pieceMask;
 			}
-			if (black) blackPieces |= pieceMask;
-			if (white) whitePieces |= pieceMask;
+			if (pieceCount > TB_LARGEST || !castlingRights.nonePresent()) return false;
 		}
-		if (pieceCount > TB_LARGEST || !castlingRights.nonePresent()) return false;
-		}
-
 
 		unsigned int tb_ret;
 		{
+			int enpassantIndex = 0;
+			if (this->enpassant) enpassantIndex = this->enpassant->x + (7 - this->enpassant->y) * 8;
 			std::lock_guard lck(Globals::tablebase_mutex);
-			tb_ret = tb_probe_root(whitePieces, blackPieces, kings, queens, rooks, bishops, knights, pawns, this->halfmoves, false, this->enpassant ? this->enpassant->toIndex() : 0, this->whitesTurn, nullptr);
+			tb_ret = tb_probe_root(whitePieces, blackPieces, kings, queens, rooks, bishops, knights, pawns, this->halfmoves, false, enpassantIndex, this->whitesTurn, nullptr);
 		}
 
 		if (tb_ret == TB_RESULT_FAILED) return false;
