@@ -76,6 +76,8 @@
     <None Include="src\BondcatException.h">
       <Filter>Header Files</Filter>
     </None>
-    <None Include=".github\copilot-instructions.md" />
+    <None Include="VERSIONS.md">
+      <Filter>Resource Files</Filter>
+    </None>
   </ItemGroup>
 </Project>
