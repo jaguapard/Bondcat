@@ -192,8 +192,17 @@ void UCI()
 		if (cmd == "quit") return;
 	}
 }
+
+struct Sentinel
+{
+	~Sentinel()
+	{
+		tb_free();
+	}
+};
 int main(int argc, char** argv)
 {
+	Sentinel tablebaseNannyDontRemoveMe;
 	bool tablebaseLoaded = [&]()
 	{
 		const char* tableBasePath = getenv("BONDCAT_ENDGAME_TABLES_PATH");
@@ -392,6 +401,4 @@ int main(int argc, char** argv)
 		std::cerr << "std exception: " << e.what() << "\n";
 		return -1;
 	}
-
-	tb_free();
 }
