@@ -76,7 +76,7 @@
     <None Include="src\BondcatException.h">
       <Filter>Header Files</Filter>
     </None>
-    <None Include="VERSIONS.md">
+    <None Include="CHANGELOG.md">
       <Filter>Resource Files</Filter>
     </None>
   </ItemGroup>
