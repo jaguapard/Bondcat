@@ -40,7 +40,7 @@ struct FEN_Codec
 	CastlingRights castlingRights;
 	bool whitesTurn;
 	std::optional<Square> enpassant; //current turn's en passant square
-	std::array<Piece, 64> board; //FEN notated pieces or ' ' (space) for empty squares
+	std::array<Piece, 64> board = { TeamedPieceType::EMPTY }; //board as array of pieces. default-initialized to fully empty board
 
 	FEN_Codec() = default;
 	FEN_Codec(const std::string& fen);	//extract data from FEN string
