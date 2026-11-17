@@ -152,6 +152,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="lib\fathom\tbprobe.cpp" />
+    <ClCompile Include="src\Board.cpp" />
     <ClCompile Include="src\BoardView.cpp" />
     <ClCompile Include="src\BondcatException.cpp" />
     <ClCompile Include="src\FEN_Codec.cpp" />
@@ -162,6 +163,7 @@
     <ClCompile Include="src\Square.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\Board.h" />
     <ClInclude Include="src\BoardView.h" />
     <ClInclude Include="src\enums.h" />
     <ClInclude Include="src\FEN_Codec.h" />
