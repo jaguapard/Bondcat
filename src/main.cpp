@@ -314,12 +314,9 @@ int main(int argc, char** argv)
 					}
 					else
 					{
-						Move m;
-						m.type = MoveType::MOVE_TO_SQUARE;
-						m.from.x = boardDrawCtx.activeSquare->x;
-						m.from.y = boardDrawCtx.activeSquare->y;
-						m.to.x = clickedAtSquare.x;
-						m.to.y = clickedAtSquare.y;
+						Square from(boardDrawCtx.activeSquare->x, boardDrawCtx.activeSquare->y);
+						Square to(clickedAtSquare.x, clickedAtSquare.y);
+						Move m(from, to, MoveType::MOVE_TO_SQUARE);
 
 						Piece& movingPiece = state.getPieceAt(m.from);
 						Piece& targetPiece = state.getPieceAt(m.to);

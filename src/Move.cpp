@@ -3,8 +3,10 @@
 #include "BondcatException.h"
 
 Move::Move(Square from, Square to, MoveType type)
-	:from(from),to(to),type(type)
 {
+	this->from = from;
+	this->to = to;
+	this->type = type;
 }
 
 std::optional<PieceType> Move::getPromotionTarget() const
@@ -80,4 +82,42 @@ Move Move::fromUCI(const std::string& moveStr, bool isCastling)
 	}
 
 	return move;
+}
+
+Square Move::getFrom() const
+{
+	return Square(u & 63);
+}
+
+Move& Move::setFrom(Square s)
+{
+	assert(s.inBounds());
+	u &= ~63;
+	u |= s.toIndex();
+	return *this;
+}
+
+Square Move::getTo() const
+{
+	return Square((u >> 6) & 63);
+}
+
+Move& Move::setTo(Square s)
+{
+	assert(s.inBounds());
+	u &= ~(63 << 6);
+	u |= s.toIndex() << 6;
+	return *this;
+}
+
+MoveType Move::getType() const
+{
+	return MoveType(u >> 12);
+}
+
+Move& Move::setType(MoveType m)
+{
+	u &= ~(15 << 12);
+	u |= int(m);
+	return *this;
 }

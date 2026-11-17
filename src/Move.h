@@ -23,8 +23,9 @@ struct Move
 	Move() = default;
 	Move(Square from, Square to, MoveType type);
 
-	Square from, to;
-	MoveType type;
+	__declspec(property(get = getFrom, put = setFrom)) Square from;
+	__declspec(property(get = getTo, put = setTo)) Square to;
+	__declspec(property(get = getType, put = setType)) MoveType type;
 
 	//Returns a promotion target stored or nullopt if there is none. Does not check if it is legal
 	std::optional<PieceType> getPromotionTarget() const;
@@ -32,4 +33,13 @@ struct Move
 
 	std::string toUCI() const;
 	static Move fromUCI(const std::string& uci, bool isCastling);
+
+	Square getFrom() const;
+	Move& setFrom(Square s);
+	Square getTo() const;
+	Move& setTo(Square s);
+	MoveType getType() const;
+	Move& setType(MoveType m);
+private:
+	uint16_t u; //bits 0..5 store source square index, 6..11 target square index, 12..15 type 
 };
