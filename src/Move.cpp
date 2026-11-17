@@ -86,38 +86,35 @@ Move Move::fromUCI(const std::string& moveStr, bool isCastling)
 
 Square Move::getFrom() const
 {
-	return Square(u & 63);
+	return Square(_from);
 }
 
 Move& Move::setFrom(Square s)
 {
 	assert(s.inBounds());
-	u &= ~63;
-	u |= s.toIndex();
+	_from = s.toIndex();
 	return *this;
 }
 
 Square Move::getTo() const
 {
-	return Square((u >> 6) & 63);
+	return Square(_to);
 }
 
 Move& Move::setTo(Square s)
 {
 	assert(s.inBounds());
-	u &= ~(63 << 6);
-	u |= s.toIndex() << 6;
+	_to = s.toIndex();
 	return *this;
 }
 
 MoveType Move::getType() const
 {
-	return MoveType(u >> 12);
+	return MoveType(_type);
 }
 
 Move& Move::setType(MoveType m)
 {
-	u &= ~(15 << 12);
-	u |= int(m);
+	_type = uint16_t(m);
 	return *this;
 }
