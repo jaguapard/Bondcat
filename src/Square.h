@@ -19,6 +19,7 @@ public:
 	bool outOfBounds() const;
 	bool operator==(const Square& other) const;
 	int toIndex() const;
+	int toFathomIndex() const;
 
 	std::string toAlgebraic() const;
 

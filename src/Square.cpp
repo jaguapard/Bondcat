@@ -45,6 +45,11 @@ int Square::toIndex() const
 	return y * 8 + x;
 }
 
+int Square::toFathomIndex() const
+{
+	return Square(x, 7 - y).toIndex();
+}
+
 std::string Square::toAlgebraic() const
 {
 	std::string ret = "xx";
