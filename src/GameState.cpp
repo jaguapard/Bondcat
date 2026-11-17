@@ -599,31 +599,38 @@ MoveRollbackData GameState::makeMove(const Move& move)
 		if (srcBit & st.board.kings & st.board.black) st.castlingRights.blackKingside = st.castlingRights.blackQueenside = false;
 
 		auto promotionTarget = move.getPromotionTarget();
-		if (!promotionTarget) st.board.movePiece(move.from.toIndex(), move.to.toIndex());
+		if (!promotionTarget)
+		{
+			if (st.board.pawns & srcBit)
+			{
+				int forwardForMovingPawn = move.to.y > move.from.y ? 1 : -1;
+				if (abs(move.to.y - move.from.y) == 2)
+				{
+					st.enpassant = 1ull << Square(move.from.x, move.from.y + forwardForMovingPawn).toIndex();
+					eraseEnpassant = false;
+				}
+				else if (st.enpassant && dstBit == st.enpassant)
+				{
+					Square enpassantCapturedSq = Square(move.to.x, move.to.y - forwardForMovingPawn);
+					st.board.removePiece(enpassantCapturedSq.toIndex());
+				}
+			}
+			st.board.movePiece(move.from.toIndex(), move.to.toIndex());	
+		}
 		else
 		{
+			//st.board.removePiece(move.from.toIndex());
+			st.board.pawns &= ~srcBit;
+			st.board.white &= ~srcBit;
+			st.board.black &= ~srcBit;
+			if (st.whitesTurn) st.board.white |= dstBit;
+			else st.board.black |= dstBit;
 
+			if (*promotionTarget == PieceType::QUEEN) st.board.queens |= dstBit;
+			else if (*promotionTarget == PieceType::ROOK) st.board.rooks |= dstBit;
+			else if (*promotionTarget == PieceType::BISHOP) st.board.bishops |= dstBit;
+			else if (*promotionTarget == PieceType::KNIGHT) st.board.knights |= dstBit;
 		}
-		if (promotionTarget) dstPiece = { *promotionTarget, movingPiece.team };
-		else dstPiece = movingPiece;
-
-		if (movingPiece.type == PieceType::PAWN)
-		{
-			this->halfmoves = 0;
-			int forwardForMovingPawn = move.to.y > move.from.y ? 1 : -1;
-			if (abs(move.to.y - move.from.y) == 2)
-			{
-				enpassant = Square(move.from.x, move.from.y + forwardForMovingPawn);
-				eraseEnpassant = false;
-			}
-			else if (enpassant && move.to == *enpassant)
-			{
-				Square enpassantCapturedSq = Square(enpassant->x, enpassant->y - forwardForMovingPawn);
-				getPieceAt(enpassantCapturedSq) = {};
-			}
-		}
-
-		movingPiece = {};
 	}
 
 	if (eraseEnpassant) st.enpassant = 0;
