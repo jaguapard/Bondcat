@@ -242,7 +242,7 @@ SearchReturn GameState::findBestMoveInner(int remainingDepth, float alpha, float
 	return ret;
 }
 
-uint64_t GameState::getPathableSquaresForRookAt(uint64_t ind, uint64_t rookAllies)
+uint64_t GameState::getSquaresAttackedByRookAt(uint64_t ind, uint64_t rookAllies)
 {
 	using enum Direction;
 	const auto& rays = Globals::directionRaysByOrigin;
@@ -286,10 +286,10 @@ uint64_t GameState::getPathableSquaresForRookAt(uint64_t ind, uint64_t rookAllie
 	}
 	else paths |= ray;
 
-	return paths & ~rookAllies & ~st.board.kings;
+	return paths & ~rookAllies;
 }
 
-uint64_t GameState::getPathableSquaresForBishopAt(uint64_t ind, uint64_t bishopAllies)
+uint64_t GameState::getSquaresAttackedByBishopAt(uint64_t ind, uint64_t bishopAllies)
 {
 	using enum Direction;
 	const auto& rays = Globals::directionRaysByOrigin;
@@ -331,7 +331,7 @@ uint64_t GameState::getPathableSquaresForBishopAt(uint64_t ind, uint64_t bishopA
 	}
 	else paths |= ray;
 
-	return paths & ~bishopAllies & ~st.board.kings;
+	return paths & ~bishopAllies;
 }
 
 GameState GameState::newGame()
@@ -822,18 +822,18 @@ DerivedData GameState::deriveStateData(DeriveOptions opts)
 	while (whiteRookLike)
 	{
 		uint64_t ind = _tzcnt_u64(whiteRookLike);
-		uint64_t paths = this->getPathableSquaresForRookAt(ind, st.board.white);
+		uint64_t paths = this->getSquaresAttackedByRookAt(ind, st.board.white);
 		squaresAttackedByWhite |= paths;
 		whiteRookLike &= ~(1ull << ind);
-		if (opts.makeLegalMoveList && st.whitesTurn) commit_moves(paths, ind);
+		if (opts.makeLegalMoveList && st.whitesTurn) commit_moves(paths & ~st.board.kings, ind);
 	}
 	while (blackRookLike)
 	{
 		uint64_t ind = _tzcnt_u64(blackRookLike);
-		uint64_t paths = this->getPathableSquaresForRookAt(ind, st.board.black);
+		uint64_t paths = this->getSquaresAttackedByRookAt(ind, st.board.black);
 		squaresAttackedByBlack |= paths;
 		blackRookLike &= ~(1ull << ind);
-		if (opts.makeLegalMoveList && !st.whitesTurn) commit_moves(paths, ind);
+		if (opts.makeLegalMoveList && !st.whitesTurn) commit_moves(paths & ~st.board.kings, ind);
 	}
 
 	uint64_t whiteBishopLike = st.board.white & (st.board.bishops | st.board.queens);
@@ -841,18 +841,18 @@ DerivedData GameState::deriveStateData(DeriveOptions opts)
 	while (whiteBishopLike)
 	{
 		uint64_t ind = _tzcnt_u64(whiteBishopLike);
-		uint64_t paths = this->getPathableSquaresForBishopAt(ind, st.board.white);
+		uint64_t paths = this->getSquaresAttackedByBishopAt(ind, st.board.white);
 		squaresAttackedByWhite |= paths;
 		whiteBishopLike &= ~(1ull << ind);
-		if (opts.makeLegalMoveList && st.whitesTurn) commit_moves(paths, ind);
+		if (opts.makeLegalMoveList && st.whitesTurn) commit_moves(paths & ~st.board.kings, ind);
 	}
 	while (blackBishopLike)
 	{
 		uint64_t ind = _tzcnt_u64(blackBishopLike);
-		uint64_t paths = this->getPathableSquaresForBishopAt(ind, st.board.black);
+		uint64_t paths = this->getSquaresAttackedByBishopAt(ind, st.board.black);
 		squaresAttackedByBlack |= paths;
 		blackBishopLike &= ~(1ull << ind);
-		if (opts.makeLegalMoveList && !st.whitesTurn) commit_moves(paths, ind);
+		if (opts.makeLegalMoveList && !st.whitesTurn) commit_moves(paths & ~st.board.kings, ind);
 	}
 	
 	int kingIndex = _tzcnt_u64(allies & st.board.kings);
@@ -861,8 +861,8 @@ DerivedData GameState::deriveStateData(DeriveOptions opts)
 	{
 		uint64_t wkingMoves = Globals::kingMoves[ret.whiteKingIndex] & ~st.board.white;
 		uint64_t bkingMoves = Globals::kingMoves[ret.blackKingIndex] & ~st.board.black;
-		squaresAttackedByBlack |= wkingMoves;
-		squaresAttackedByWhite |= bkingMoves;
+		squaresAttackedByWhite |= wkingMoves;
+		squaresAttackedByBlack |= bkingMoves;
 		if (opts.makeLegalMoveList) commit_moves((st.whitesTurn ? wkingMoves : bkingMoves) & ~st.board.kings, st.whitesTurn ? ret.whiteKingIndex : ret.blackKingIndex);
 	}
 	
@@ -933,11 +933,8 @@ DerivedData GameState::deriveStateData(DeriveOptions opts)
 				if (!(notEmpty & emptyCheck) && !(squaresAttackedByEnemy & checkCheck)) ret.legalMoveList.push_back(Move({}, {}, MoveType::BLACK_QUEENSIDE_CASTLE));
 			}
 		}
-	}
 
-	//TODO: pin checks rely on move lists, should force that flag on?
-	if (!opts.skipPinChecks)
-	{
+		//now all pseudo legal moves are in the list, the list needs to be filtered to remove moves that put/leave the moving team's king in check
 		//final filter: disallow moves that put or leave our king in check
 		DeriveOptions opts2;
 		opts2.makeLegalMoveList = false;
@@ -954,6 +951,12 @@ DerivedData GameState::deriveStateData(DeriveOptions opts)
 			}
 			this->rollbackMove();
 		}
+	}
+
+	//TODO: pin checks rely on move lists, should force that flag on?
+	if (!opts.skipPinChecks)
+	{
+		
 	}
 
 	//TODO: maybe can put game status update here too?

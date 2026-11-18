@@ -251,7 +251,8 @@ int main(int argc, char** argv)
 		//state = GameState::fromFEN("8/8/8/2k5/4b1p1/5q2/p1p4K/8 b - - 97 533"); //mate avoidance, here black can mate with Qg2# or Qf2# but choses to delay
 		//state = GameState::fromFEN("6nn/p1p1p1p1/1p1p1p1p/8/8/2k5/K1p5/8 b - - 0 1"); //underpromotion test: promoting to queen is stalemate. More pieces to avoid endgame lookup. ...c1=R, then king only has Ka3, Ra1#
 		//state = GameState::fromFEN("r6k/3n4/3n4/8/bb1R2pp/8/3N4/K2B4 w - - 0 1"); //Rook move test
-		state = GameState::fromFEN("rb5k/3n4/3n3Q/8/bb1B1Bpp/8/KR1N4/3B4 w - - 0 1"); //bishop move test
+		//state = GameState::fromFEN("rb5k/3n4/3n3Q/8/bb1B1Bpp/8/KR1N4/3B4 w - - 0 1"); //bishop move test
+		state = GameState::fromFEN("7k/8/8/7R/8/8/8/K7 w - - 0 1");
 
 		float minDim = std::min(w, h);
 		BoardView boardView({ 0,0,minDim,minDim }, 8, 8);

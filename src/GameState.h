@@ -105,13 +105,13 @@ public:
 private:
 	SearchReturn findBestMoveInner(int remainingDepth, float alpha, float beta, const SearchParams& params);
 
-	//Returns a bit mask of squares a rook at square ind can path into. This only checks obstructions, not legality of moves.
+	//Returns a bit mask of squares a rook at square ind attacks. This only checks obstructions, not legality of moves.
 	//rookAllies are used to filter out allies and paths blocked by them and must be a mask of pieces same team as the rook in question
-	uint64_t getPathableSquaresForRookAt(uint64_t ind, uint64_t rookAllies);
+	uint64_t getSquaresAttackedByRookAt(uint64_t ind, uint64_t rookAllies);
 
-	//Returns a bit mask of squares a bishop at square ind can path into. This only checks obstructions, not legality of moves.
+	//Returns a bit mask of squares a bishop at square ind attacks. This only checks obstructions, not legality of moves.
 	//bishopAllies are used to filter out allies and paths blocked by them and must be a mask of pieces same team as the bishop in question
-	uint64_t getPathableSquaresForBishopAt(uint64_t ind, uint64_t bishopAllies);
+	uint64_t getSquaresAttackedByBishopAt(uint64_t ind, uint64_t bishopAllies);
 public:
 	StaticArray<StateStackEntry, 10240> stateStack;
 
