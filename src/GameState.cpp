@@ -29,6 +29,10 @@ constexpr std::array<float, 64> bishopMult = {
 	0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95,
 	1, 1, 1, 1, 1, 1, 1, 1,
 };
+GameState::GameState()
+{
+	this->stateStack.reserve(1024);
+}
 SearchReturn GameState::findBestMove(SearchParams params)
 {
 	assert(params.maxDepth >= 1);
@@ -170,7 +174,7 @@ SearchReturn GameState::findBestMoveInner(int remainingDepth, float alpha, float
 		for (auto& move : dd.legalMoveList)
 		{
 			//if (move.from == Square("f3") && move.to == Square("g2")) __debugbreak();
-			auto rollback = this->makeMove(move);
+			this->makeMove(move);
 			this->updateStatus();
 
 			SearchReturn subsearch = findBestMoveInner(remainingDepth - 1, -beta, -alpha, params);
@@ -180,7 +184,7 @@ SearchReturn GameState::findBestMoveInner(int remainingDepth, float alpha, float
 			ret.evaluation = std::max(-subsearch.evaluation, ret.evaluation);
 			alpha = std::max(alpha, ret.evaluation);
 
-			this->rollbackMove(rollback);
+			this->rollbackMove();
 			if (alpha >= beta) break;
 		}
 	}
@@ -242,7 +246,12 @@ GameState GameState::newGame()
 	return fromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 }
 
-Piece GameState::getPieceAt(Square s) const
+StateStackEntry& GameState::getTopStateStackEntry()
+{
+	return stateStack.back();
+}
+
+Piece GameState::getPieceAt(Square s)
 {
 	using enum TeamedPieceType;
 	assert(s.inBounds());
@@ -271,20 +280,22 @@ void GameState::updateStatus()
 	if (kingChecked)
 	{
 		bool checkmate = true;
-		std::optional<MoveRollbackData> rollback;
+		bool rollback = false;
 		for (auto& move : dd.legalMoveList)
 		{
-			rollback = this->makeMove(move);
+			this->makeMove(move);
+			rollback = true;
 			DerivedData dd2 = deriveStateData();
 			if (!(st.whitesTurn ? dd2.whiteChecked : dd2.blackChecked))
 			{
 				checkmate = false;
 				break;
 			}
-			this->rollbackMove(*rollback);
+			this->rollbackMove();
+			rollback = false;
 		}
 
-		if (rollback) this->rollbackMove(*rollback);
+		if (rollback) this->rollbackMove();
 		if (checkmate)
 		{
 			this->gameStatus = st.whitesTurn ? GameStatus::BLACK_WON_BY_CHECKMATE : GameStatus::WHITE_WON_BY_CHECKMATE;
@@ -564,15 +575,17 @@ MoveResult GameState::tryMakeMove(const Move& move)
 	if (std::find(dd.legalMoveList.begin(), dd.legalMoveList.end(), move) != dd.legalMoveList.end())
 	{
 		ret.applied = true;
-		ret.rollbackData = this->makeMove(move);
+		this->makeMove(move);
 		ret.checkStatus = MoveCheckStatus::LEGAL;
 	}
 	return ret;
 }
 
-MoveRollbackData GameState::makeMove(const Move& move)
+void GameState::makeMove(const Move& move)
 {
-	MoveRollbackData rollback = st;
+	assert(std::popcount(st.board.kings) == 2);
+	StateStackEntry cp = st;
+	this->stateStack.push_back(cp);
 	this->st.halfmoves++;
 	this->st.whitesTurn ^= 1;
 	if (this->st.whitesTurn) this->st.fullmoves++;
@@ -646,19 +659,19 @@ MoveRollbackData GameState::makeMove(const Move& move)
 	//Thus, gameStatus is made optional that will explode on unwrapping, forcing callers to update game status
 	this->gameStatus = std::nullopt;
 	this->seenPositions[st.board]++;
-
-	return rollback;
 }
 
-void GameState::rollbackMove(const MoveRollbackData& rollbackData)
+void GameState::rollbackMove()
 {
 	assert(seenPositions[st.board] >= 1);
+	assert(this->stateStack.size() > 0);
 	if (--seenPositions[st.board] == 0) seenPositions.erase(st.board);
-	this->st = rollbackData;
+	this->stateStack.pop_back();
 }
 
 DerivedData GameState::deriveStateData(DeriveOptions opts)
 {
+	assert(std::popcount(st.board.kings) == 2);
 	DerivedData ret;
 	ret.motionMatrix = { 0 };
 	uint64_t allies = st.whitesTurn ? st.board.white : st.board.black;
@@ -870,14 +883,14 @@ DerivedData GameState::deriveStateData(DeriveOptions opts)
 		bool savedWhitesTurn = st.whitesTurn;
 		for (int i = 0; i < ret.legalMoveList.size(); ++i)
 		{
-			MoveRollbackData rollback = this->makeMove(ret.legalMoveList[i]);
+			this->makeMove(ret.legalMoveList[i]);
 			DerivedData dd = deriveStateData(opts2);
 			if ((savedWhitesTurn ? dd.whiteChecked : dd.blackChecked))
 			{
 				ret.legalMoveList[i--] = ret.legalMoveList.back();
 				ret.legalMoveList.pop_back();
 			}
-			this->rollbackMove(rollback);
+			this->rollbackMove();
 		}
 	}
 

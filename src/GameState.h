@@ -59,10 +59,10 @@ struct CompressedPosition
 	bool operator<(const CompressedPosition& other) const;
 };*/
 
-struct MoveRollbackData
+struct StateStackEntry
 {
-	CastlingRights castlingRights; //castling rights before the move
-	uint64_t enpassant; //en passant square before the move
+	CastlingRights castlingRights;
+	uint64_t enpassant;
 	uint32_t halfmoves, fullmoves;
 	bool whitesTurn;
 	Board board;
@@ -72,7 +72,6 @@ struct MoveResult
 {
 	bool applied;
 	MoveCheckStatus checkStatus;
-	MoveRollbackData rollbackData;
 };
 
 struct CastlingSquares
@@ -101,15 +100,20 @@ struct DeriveOptions
 struct GameState
 {
 public:
+	GameState();
 	SearchReturn findBestMove(SearchParams params);
 private:
 	SearchReturn findBestMoveInner(int remainingDepth, float alpha, float beta, const SearchParams& params);
 public:
-	MoveRollbackData st;
+	std::vector<StateStackEntry> stateStack = std::vector<StateStackEntry>(1);
+
+	__declspec(property(get = getTopStateStackEntry)) StateStackEntry& st;
+
+	StateStackEntry& getTopStateStackEntry();
 	std::optional<GameStatus> gameStatus;
 	std::map<Board, int> seenPositions;
 
-	Piece getPieceAt(Square s) const;
+	Piece getPieceAt(Square s);
 
 	void updateStatus();
 	//derives various useful data from current game state, such as:
@@ -124,6 +128,6 @@ public:
 	void reset();
 
 	MoveResult tryMakeMove(const Move& move); //Applies move if it is legal 
-	MoveRollbackData makeMove(const Move& move); //Applies move without validation
-	void rollbackMove(const MoveRollbackData& rollbackData); //rolls back move. Only supports rolling back the last move applied.
+	void makeMove(const Move& move); //Applies move without validation
+	void rollbackMove(); //rolls back move. Only supports rolling back the last move applied.
 };
