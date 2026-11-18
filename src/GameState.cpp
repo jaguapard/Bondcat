@@ -855,10 +855,19 @@ DerivedData GameState::deriveStateData(DeriveOptions opts)
 		if (opts.makeLegalMoveList && !st.whitesTurn) commit_moves(paths, ind);
 	}
 	
-	uint64_t squaresAttackedByEnemy = st.whitesTurn ? squaresAttackedByBlack : squaresAttackedByWhite;
 	int kingIndex = _tzcnt_u64(allies & st.board.kings);
 	ret.whiteKingIndex = _tzcnt_u64(st.board.kings & st.board.white);
 	ret.blackKingIndex = _tzcnt_u64(st.board.kings & st.board.black);
+	{
+		uint64_t wkingMoves = Globals::kingMoves[ret.whiteKingIndex] & ~st.board.white;
+		uint64_t bkingMoves = Globals::kingMoves[ret.blackKingIndex] & ~st.board.black;
+		squaresAttackedByBlack |= wkingMoves;
+		squaresAttackedByWhite |= bkingMoves;
+		if (opts.makeLegalMoveList) commit_moves((st.whitesTurn ? wkingMoves : bkingMoves) & ~st.board.kings, st.whitesTurn ? ret.whiteKingIndex : ret.blackKingIndex);
+	}
+	
+	uint64_t squaresAttackedByEnemy = st.whitesTurn ? squaresAttackedByBlack : squaresAttackedByWhite;
+	
 	//ret.motionMatrix[kingIndex] &= ~squaresAttackedByEnemy;
 	ret.squaresAttackedByBlack = squaresAttackedByBlack;
 	ret.squaresAttackedByWhite = squaresAttackedByWhite;
