@@ -153,8 +153,8 @@ void UCI()
 				std::string dst = moveStr.substr(2, 2);
 
 				Move move(Square(src), Square(dst), MoveType::MOVE_TO_SQUARE);
-				Piece& srcPiece = gameState.getPieceAt(move.from);
-				Piece& dstPiece = gameState.getPieceAt(move.to);
+				Piece srcPiece = gameState.getPieceAt(move.from);
+				Piece dstPiece = gameState.getPieceAt(move.to);
 				if (moveStr.length() > 4)
 				{
 					if (moveStr[4] == 'q') move.type = MoveType::MOVE_AND_PROMOTE_TO_QUEEN;
@@ -308,10 +308,11 @@ int main(int argc, char** argv)
 						{
 							boardDrawCtx.activeSquare = clickedAtSquare;
 							boardDrawCtx.circlesAt.clear();
-							MoveList legalMoves;
-							state.getAllLegalMovesForPieceAt(*boardDrawCtx.activeSquare, legalMoves);
-							for (auto& move : legalMoves)
+
+							DerivedData dd = state.deriveStateData();
+							for (auto& move : dd.legalMoveList)
 							{
+								if (move.from != *boardDrawCtx.activeSquare) continue;
 								boardDrawCtx.circlesAt.push_back({ move.to.x, move.to.y });
 							}
 						}
@@ -322,9 +323,9 @@ int main(int argc, char** argv)
 						Square to(clickedAtSquare.x, clickedAtSquare.y);
 						Move m(from, to, MoveType::MOVE_TO_SQUARE);
 
-						Piece& movingPiece = state.getPieceAt(m.from);
-						Piece& targetPiece = state.getPieceAt(m.to);
-						bool onLastRank = m.to.y == (state.whitesTurn ? 0 : 7);
+						Piece movingPiece = state.getPieceAt(m.from);
+						Piece targetPiece = state.getPieceAt(m.to);
+						bool onLastRank = m.to.y == (state.st.whitesTurn ? 0 : 7);
 						bool isPawn = movingPiece.type == PieceType::PAWN;
 						if (isPawn && onLastRank) {
 							m.type = MoveType::MOVE_AND_PROMOTE_TO_QUEEN;

@@ -860,6 +860,7 @@ DerivedData GameState::deriveStateData(DeriveOptions opts)
 		}
 	}
 
+	//TODO: pin checks rely on move lists, should force that flag on?
 	if (!opts.skipPinChecks)
 	{
 		//final filter: disallow moves that put or leave our king in check
@@ -881,7 +882,7 @@ DerivedData GameState::deriveStateData(DeriveOptions opts)
 	}
 
 	//TODO: maybe can put game status update here too?
-
+	//TODO: add attackers and defender matrices and check king check avoidance with them instead of emulating move?
 	return ret;
 }
 
