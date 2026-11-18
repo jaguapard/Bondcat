@@ -84,7 +84,7 @@ struct CastlingSquares
 typedef StaticArray<Move, 280> MoveList; //should probably fit all legal moves in classical, right?
 struct DerivedData
 {
-	std::array<uint64_t, 64> motionMatrix; //can piece at square i move into square j?
+	//std::array<uint64_t, 64> motionMatrix; //can piece at square i move into square j?
 	uint64_t squaresAttackedByBlack, squaresAttackedByWhite;
 	uint32_t whiteKingIndex, blackKingIndex;
 	bool whiteChecked, blackChecked;

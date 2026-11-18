@@ -766,7 +766,7 @@ DerivedData GameState::deriveStateData(DeriveOptions opts)
 {
 	assert(std::popcount(st.board.kings) == 2);
 	DerivedData ret;
-	ret.motionMatrix = { 0 };
+	//ret.motionMatrix = { 0 };
 	uint64_t allies = st.whitesTurn ? st.board.white : st.board.black;
 	uint64_t enemies = st.whitesTurn ? st.board.black : st.board.white;
 	uint64_t notEmpty = st.board.black | st.board.white;
@@ -797,6 +797,25 @@ DerivedData GameState::deriveStateData(DeriveOptions opts)
 		};
 	//on our board, tzcnt basically scans from from top-left to bottom right, lzcnt - from bottom-right to top-left (inverse of lzcnt)
 	//Thus, one such instruction can do entire loop's worth of scanning
+
+	uint64_t whiteKnights = st.board.white & st.board.knights;
+	uint64_t blackKnights = st.board.black & st.board.knights;
+	while (whiteKnights)
+	{
+		uint64_t ind = _tzcnt_u64(whiteKnights);
+		uint64_t moves = Globals::knightMoves[ind];
+		whiteKnights &= ~(1ull << ind);
+		squaresAttackedByWhite |= moves;
+		if (opts.makeLegalMoveList && st.whitesTurn) commit_moves(moves & ~st.board.white & ~st.board.kings, ind);
+	}
+	while (blackKnights)
+	{
+		uint64_t ind = _tzcnt_u64(blackKnights);
+		uint64_t moves = Globals::knightMoves[ind];
+		blackKnights &= ~(1ull << ind);
+		squaresAttackedByBlack |= moves;
+		if (opts.makeLegalMoveList && !st.whitesTurn) commit_moves(moves & ~st.board.black & ~st.board.kings, ind);
+	}
 
 	uint64_t whiteRookLike = st.board.white & (st.board.rooks | st.board.queens);
 	uint64_t blackRookLike = st.board.black & (st.board.rooks | st.board.queens);
@@ -835,148 +854,21 @@ DerivedData GameState::deriveStateData(DeriveOptions opts)
 		blackBishopLike &= ~(1ull << ind);
 		if (opts.makeLegalMoveList && !st.whitesTurn) commit_moves(paths, ind);
 	}
-	/*
-	for (int i = 0; i < 64; ++i)
-	{
-		uint64_t bit = 1ull << i;
-		if (bit & empty) continue; //TODO: can instead start and increase i by lzcnt?
-		uint64_t teamedBit = bit & allies;
-		uint64_t otherTeamBit = bit & enemies;
-
-		int fromX = i % 8;
-		int fromY = i / 8;
-		//put all these bits into LSB
-		//bit >>= 63 - i;
-		//teamedBit >>= 63 - i;
-		//otherTeamBit >>= 63 - i;
-
-		uint64_t basicMovement = 0;
-		//TODO: ifs for now, optimize later
-		if (bit & st.board.kings) basicMovement = Globals::kingMoves[i];
-		if (bit & st.board.knights) basicMovement = Globals::knightMoves[i];
-
-		//Sliding pieces (rooks, bishops, queens and pawn forward moves) currently use "blacklist":
-		//Start will all squares blacklisted, whitelist until first occluder. 
-		//But still whitelist the occluder square, since we can capture enemy piece, and allies are filtered out by final &= allies
-		uint64_t rookMoves = 0, bishopMoves = 0;
-		if (bit & (st.board.rooks | st.board.queens | st.board.pawns))
-		{
-			uint64_t rookOccluders = -1ll;
-			for (int dstX = fromX - 1; dstX >= 0; --dstX)
-			{
-				uint64_t k = 1ull << (fromY * 8 + dstX);
-				rookOccluders &= ~k;
-				if (notEmpty & k) break;
-			}
-			for (int dstX = fromX + 1; dstX < 8; ++dstX)
-			{
-				uint64_t k = 1ull << (fromY * 8 + dstX);
-				rookOccluders &= ~k;
-				if (notEmpty & k) break;
-			}
-			for (int dstY = fromY + 1; dstY < 8; ++dstY)
-			{
-				uint64_t k = 1ull << (dstY * 8 + fromX);
-				rookOccluders &= ~k;
-				if (notEmpty & k) break;
-			}
-			for (int dstY = fromY - 1; dstY >= 0; --dstY)
-			{
-				uint64_t k = 1ull << (dstY * 8 + fromX);
-				rookOccluders &= ~k;
-				if (notEmpty & k) break;
-			}
-
-			uint64_t m = Globals::directionRaysByOrigin[i][int(Direction::UP)] | Globals::directionRaysByOrigin[i][int(Direction::DOWN)] | Globals::directionRaysByOrigin[i][int(Direction::LEFT)] | Globals::directionRaysByOrigin[i][int(Direction::RIGHT)];
-			rookMoves = m & ~rookOccluders;
-		}
-		if (bit & (st.board.bishops | st.board.queens))
-		{
-			uint64_t bishopOccluders = -1ll;
-			int dstX = fromX - 1, dstY = fromY - 1;
-			for (; dstX >= 0 && dstY >= 0; --dstX, --dstY) //left-up diagonal
-			{
-				uint64_t k = 1ull << (dstY * 8 + dstX);
-				bishopOccluders &= ~k;
-				if (notEmpty & k) break;
-			}
-			for (dstX = fromX + 1, dstY = fromY - 1; dstX < 8 && dstY >= 0; ++dstX, --dstY) //right-up diagonal
-			{
-				uint64_t k = 1ull << (dstY * 8 + dstX);
-				bishopOccluders &= ~k;
-				if (notEmpty & k) break;
-			}
-			for (dstX = fromX - 1, dstY = fromY + 1; dstX >= 0 && dstY < 8; --dstX, ++dstY) //left-down diagonal
-			{
-				uint64_t k = 1ull << (dstY * 8 + dstX);
-				bishopOccluders &= ~k;
-				if (notEmpty & k) break;
-			}
-			for (dstX = fromX + 1, dstY = fromY + 1; dstX < 8 && dstY < 8; ++dstX, ++dstY) //right-down diagonal
-			{
-				uint64_t k = 1ull << (dstY * 8 + dstX);
-				bishopOccluders &= ~k;
-				if (notEmpty & k) break;
-			}
-
-			uint64_t m = Globals::directionRaysByOrigin[i][int(Direction::LEFT_UP)] | Globals::directionRaysByOrigin[i][int(Direction::RIGHT_UP)] | Globals::directionRaysByOrigin[i][int(Direction::LEFT_DOWN)] | Globals::directionRaysByOrigin[i][int(Direction::RIGHT_DOWN)];
-			bishopMoves = m & ~bishopOccluders;
-		}
-
-		uint64_t pawnMoves = 0, pawnCaptures = 0;
-		if (bit & st.board.pawns & st.board.black)
-		{
-			pawnMoves = (Globals::blackPawnMoves[i] & rookMoves & empty);
-			pawnCaptures = (Globals::blackPawnCaptures[i] & (enemies | st.enpassant));
-			basicMovement = pawnMoves | pawnCaptures;
-		}
-		if (bit & st.board.pawns & st.board.white)
-		{
-			pawnMoves = (Globals::whitePawnMoves[i] & rookMoves & empty);
-			pawnCaptures = (Globals::whitePawnCaptures[i] & (enemies | st.enpassant));
-			basicMovement = pawnMoves | pawnCaptures;
-		}
-		if (bit & (st.board.bishops | st.board.queens)) basicMovement |= bishopMoves;
-		if (bit & (st.board.rooks | st.board.queens)) basicMovement |= rookMoves;
-
-		//squares attacked are movements for all pieces, except kings (kinda) and pawns. King "attacks" are still "real" for check calculations,
-		//but pawns always require separate care: en passant doesn't count for attacks (?) but normal diagonal captures do
-		//basicMovement &= ~allies;
-		if (bit & ~st.board.pawns)
-		{
-			if (bit & st.board.white) squaresAttackedByWhite |= basicMovement & ~st.board.white;
-			if (bit & st.board.black) squaresAttackedByBlack |= basicMovement & ~st.board.black;
-		}
-		if (bit & st.board.pawns)
-		{
-			if (bit & st.board.white) squaresAttackedByWhite |= Globals::whitePawnCaptures[i] & ~st.board.white;
-			if (bit & st.board.black) squaresAttackedByBlack |= Globals::blackPawnCaptures[i] & ~st.board.black;
-		}
-		if (!(bit & allies)) continue; //can't move empty or enemy pieces on our turn, but need that data for attacks calculation, so just don't allow writing out
-
-		ret.motionMatrix[i] = basicMovement & ~allies & ~st.board.kings; //preliminary list, need to then filter out king moves into squares attacked by enemies
-	}
-	*/
 	
 	uint64_t squaresAttackedByEnemy = st.whitesTurn ? squaresAttackedByBlack : squaresAttackedByWhite;
 	int kingIndex = _tzcnt_u64(allies & st.board.kings);
 	ret.whiteKingIndex = _tzcnt_u64(st.board.kings & st.board.white);
 	ret.blackKingIndex = _tzcnt_u64(st.board.kings & st.board.black);
-	ret.motionMatrix[kingIndex] &= ~squaresAttackedByEnemy;
+	//ret.motionMatrix[kingIndex] &= ~squaresAttackedByEnemy;
 	ret.squaresAttackedByBlack = squaresAttackedByBlack;
 	ret.squaresAttackedByWhite = squaresAttackedByWhite;
 
 	ret.whiteChecked = st.board.kings & st.board.white & squaresAttackedByBlack;
 	ret.blackChecked = st.board.kings & st.board.black & squaresAttackedByWhite;
-	/*for (int i = 0; i < 64; ++i)
-	{
-		uint64_t bit = 1ull << i;
-		if (board.kings & bit) continue; //TODO: lz/tzcnt for king index: kingIndex = tzcnt(allies & board.kings)
-
-	}*/
 
 	if (opts.makeLegalMoveList)
 	{
+		/*
 		uint64_t lastRankForPawnsMask = st.whitesTurn ? 0xFFull : (0xFFull << 56);
 		for (int srcInd = 0; srcInd < 64; ++srcInd)
 		{
@@ -1000,7 +892,7 @@ DerivedData GameState::deriveStateData(DeriveOptions opts)
 					}
 				}
 			}
-		}
+		}*/
 
 		if (st.whitesTurn)
 		{
