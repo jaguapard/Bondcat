@@ -288,12 +288,13 @@ int main(int argc, char** argv)
 		boardDrawCtx.textures = &pieceTextures;
 		SearchParams params;
 		params.maxDepth = 4;
+		bool engineEnabled = false;
 		while (true)
 		{
 			SDL_Event event;
 			while (SDL_PollEvent(&event))
 			{
-				if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == 1 && state.whitesTurn)
+				if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == 1 && (!engineEnabled || state.st.whitesTurn))
 				{
 					SDL_Point p;
 					p.x = event.motion.x;
@@ -366,7 +367,7 @@ int main(int argc, char** argv)
 			boardView.draw(rend, boardDrawCtx);
 			SDL_RenderPresent(rend);
 
-			if (!state.whitesTurn)
+			if (!state.st.whitesTurn && engineEnabled)
 			{
 				std::cout << "Engine thinking...";
 				SearchReturn search = state.findBestMove(params);
