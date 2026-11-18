@@ -387,7 +387,7 @@ int main(int argc, char** argv)
 				state.updateStatus();
 			}
 
-			if (*state.gameStatus != GameStatus::ONGOING) std::cout << "GAME OVER: " << StringifyEnum(*state.gameStatus) << "\n";
+			if (state.gameStatus && *state.gameStatus != GameStatus::ONGOING) std::cout << "GAME OVER: " << StringifyEnum(*state.gameStatus) << "\n";
 		}
 
 		//auto legal = state.getAllLegalMoves();
