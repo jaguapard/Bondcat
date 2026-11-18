@@ -334,6 +334,25 @@ uint64_t GameState::getSquaresAttackedByBishopAt(uint64_t ind, uint64_t bishopAl
 	return paths & ~bishopAllies;
 }
 
+bool GameState::isSquareAttacked(uint64_t sqInd, bool forWhite)
+{
+	//abusing the symmetry of attacks:
+	//If a square is attacked by knight/king, then knight/king at this square can also attack the attacker
+	uint64_t enemies = forWhite ? st.board.black : st.board.white;
+	uint64_t allies = forWhite ? st.board.white: st.board.black;
+	if (st.board.knights & enemies & Globals::knightMoves[sqInd]) return true;
+	if (st.board.kings & enemies & Globals::kingMoves[sqInd]) return true;
+
+	//Same for sliders. If enemy slider is attacked by us, then we are also attacked
+	uint64_t sqBit = 1ull << sqInd;
+	if (getSquaresAttackedByBishopAt(sqInd, allies) & enemies & (st.board.bishops | st.board.queens)) return true;
+	if (getSquaresAttackedByRookAt(sqInd, allies) & enemies & (st.board.rooks | st.board.queens)) return true;
+
+	if (forWhite) return Globals::blackPawnCaptures[sqInd] & enemies & st.board.pawns;
+	else return Globals::whitePawnCaptures[sqInd] & enemies & st.board.pawns;
+	return false;
+}
+
 GameState GameState::newGame()
 {
 	return fromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
@@ -941,8 +960,8 @@ DerivedData GameState::deriveStateData(DeriveOptions opts)
 		for (int i = 0; i < ret.legalMoveList.size(); ++i)
 		{
 			this->makeMove(ret.legalMoveList[i]);
-			DerivedData dd = deriveStateData(opts2);
-			if ((savedWhitesTurn ? dd.whiteChecked : dd.blackChecked))
+			uint64_t kingIndex = _tzcnt_u64(st.board.kings & (savedWhitesTurn ? st.board.white : st.board.black));
+			if (this->isSquareAttacked(kingIndex, savedWhitesTurn))
 			{
 				ret.legalMoveList[i--] = ret.legalMoveList.back();
 				ret.legalMoveList.pop_back();

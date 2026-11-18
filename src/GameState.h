@@ -112,6 +112,9 @@ private:
 	//Returns a bit mask of squares a bishop at square ind attacks. This only checks obstructions, not legality of moves.
 	//bishopAllies are used to filter out allies and paths blocked by them and must be a mask of pieces same team as the bishop in question
 	uint64_t getSquaresAttackedByBishopAt(uint64_t ind, uint64_t bishopAllies);
+
+	//Returns true if square is attacked for: white if forWhite == true, else for black
+	bool isSquareAttacked(uint64_t sqInd, bool forWhite);
 public:
 	StaticArray<StateStackEntry, 10240> stateStack;
 
