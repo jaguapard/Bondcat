@@ -806,7 +806,7 @@ DerivedData GameState::deriveStateData(DeriveOptions opts)
 		uint64_t paths = this->getPathableSquaresForRookAt(ind, st.board.white);
 		squaresAttackedByWhite |= paths;
 		whiteRookLike &= ~(1ull << ind);
-		if (st.whitesTurn) commit_moves(paths, ind);
+		if (opts.makeLegalMoveList && st.whitesTurn) commit_moves(paths, ind);
 	}
 	while (blackRookLike)
 	{
@@ -814,7 +814,7 @@ DerivedData GameState::deriveStateData(DeriveOptions opts)
 		uint64_t paths = this->getPathableSquaresForRookAt(ind, st.board.black);
 		squaresAttackedByBlack |= paths;
 		blackRookLike &= ~(1ull << ind);
-		if (!st.whitesTurn) commit_moves(paths, ind);
+		if (opts.makeLegalMoveList && !st.whitesTurn) commit_moves(paths, ind);
 	}
 
 	uint64_t whiteBishopLike = st.board.white & (st.board.bishops | st.board.queens);
@@ -825,7 +825,7 @@ DerivedData GameState::deriveStateData(DeriveOptions opts)
 		uint64_t paths = this->getPathableSquaresForBishopAt(ind, st.board.white);
 		squaresAttackedByWhite |= paths;
 		whiteBishopLike &= ~(1ull << ind);
-		if (st.whitesTurn) commit_moves(paths, ind);
+		if (opts.makeLegalMoveList && st.whitesTurn) commit_moves(paths, ind);
 	}
 	while (blackBishopLike)
 	{
@@ -833,7 +833,7 @@ DerivedData GameState::deriveStateData(DeriveOptions opts)
 		uint64_t paths = this->getPathableSquaresForBishopAt(ind, st.board.black);
 		squaresAttackedByBlack |= paths;
 		blackBishopLike &= ~(1ull << ind);
-		if (!st.whitesTurn) commit_moves(paths, ind);
+		if (opts.makeLegalMoveList && !st.whitesTurn) commit_moves(paths, ind);
 	}
 	/*
 	for (int i = 0; i < 64; ++i)
