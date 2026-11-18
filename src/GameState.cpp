@@ -733,12 +733,8 @@ void GameState::makeMove(const Move& move)
 		}
 		else
 		{
-			//st.board.removePiece(move.from.toIndex());
-			st.board.pawns &= ~srcBit;
-			st.board.white &= ~srcBit;
-			st.board.black &= ~srcBit;
-			if (st.whitesTurn) st.board.white |= dstBit;
-			else st.board.black |= dstBit;
+			st.board.movePiece(move.from.toIndex(), move.to.toIndex());
+			st.board.pawns &= ~dstBit;
 
 			if (*promotionTarget == PieceType::QUEEN) st.board.queens |= dstBit;
 			else if (*promotionTarget == PieceType::ROOK) st.board.rooks |= dstBit;
@@ -905,32 +901,6 @@ DerivedData GameState::deriveStateData(DeriveOptions opts)
 
 	if (opts.makeLegalMoveList)
 	{
-		/*
-		uint64_t lastRankForPawnsMask = st.whitesTurn ? 0xFFull : (0xFFull << 56);
-		for (int srcInd = 0; srcInd < 64; ++srcInd)
-		{
-			uint64_t srcBit = 1ull << srcInd;
-			if (ret.motionMatrix[srcInd] == 0) continue;
-			for (int dstInd = 0; dstInd < 64; ++dstInd)
-			{
-				uint64_t dstBit = 1ull << dstInd;
-				if (!(ret.motionMatrix[srcInd] & (1ull << dstInd))) continue;
-
-				Move m(Square(srcInd), Square(dstInd), MoveType::MOVE_TO_SQUARE);
-
-				bool promotion = (st.board.pawns & srcBit) && (lastRankForPawnsMask & dstBit);
-				if (!promotion) ret.legalMoveList.push_back(m);
-				else
-				{
-					for (auto it : { MoveType::MOVE_AND_PROMOTE_TO_QUEEN, MoveType::MOVE_AND_PROMOTE_TO_ROOK, MoveType::MOVE_AND_PROMOTE_TO_BISHOP, MoveType::MOVE_AND_PROMOTE_TO_KNIGHT })
-					{
-						m.type = it;
-						ret.legalMoveList.push_back(m);
-					}
-				}
-			}
-		}*/
-
 		if (st.whitesTurn)
 		{
 			if (st.castlingRights.whiteKingside)
@@ -979,12 +949,6 @@ DerivedData GameState::deriveStateData(DeriveOptions opts)
 			}
 			this->rollbackMove();
 		}
-	}
-
-	//TODO: pin checks rely on move lists, should force that flag on?
-	if (!opts.skipPinChecks)
-	{
-		
 	}
 
 	//TODO: maybe can put game status update here too?
