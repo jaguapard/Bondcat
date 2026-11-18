@@ -32,6 +32,8 @@ std::string StringifyEnum(MoveCheckStatus status)
 	{
 	case LEGAL: return "Legal move.";
 	case LEGALITY_CHECK_SKIPPED: return "Legality check skipped.";
+	case ILLEGAL_REASON_NOT_SPECIFIED: return "Illegal with reason unspecified.";
+
 	case SRC_OUT_OF_BOUNDS: return "The source square is outside the chessboard.";
 	case DST_OUT_OF_BOUNDS: return "The destination square is outside the chessboard.";
 	case STATIONARY_MOTION: return "The source and destination squares are the same.";
@@ -71,9 +73,9 @@ std::string StringifyEnum(MoveCheckStatus status)
 	case KING_RUNS_INTO_ANOTHER_KING: return "A king can't move into squares attacked by another king.";
 	case MOVING_SLIDING_PATHS_EXIST_BUT_NONE_MATCH: return "Sliding piece path exists but none match (this usually means that chosen square is on the right path, but obstructed).";
 	case MOVING_TEAMS_KING_IN_CHECK: return "Move puts or leaves moving team's king in check.";
-	}
 
-	return "Unknown move-check status: " + std::to_string(int(status));
+	default: return "Unknown move-check status: " + std::to_string(int(status));
+	}
 }
 
 std::string StringifyEnum(GameStatus status)
