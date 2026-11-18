@@ -40,6 +40,8 @@ struct Move
 	Move& setTo(Square s);
 	MoveType getType() const;
 	Move& setType(MoveType m);
+
+	bool operator==(const Move& other) const;
 private:
 	uint16_t _from : 6, _to : 6, _type : 4; //bits 0..5 store source square index, 6..11 target square index, 12..15 type 
 };

@@ -118,3 +118,10 @@ Move& Move::setType(MoveType m)
 	_type = uint16_t(m);
 	return *this;
 }
+
+bool Move::operator==(const Move& other) const
+{
+	bool equal = type == other.type;
+	if (isCastlingMove()) return equal; //ignore from and to squares there
+	return equal && from == other.from && to == other.to;
+}
