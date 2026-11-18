@@ -756,31 +756,31 @@ DerivedData GameState::deriveStateData(DeriveOptions opts)
 			pawnCaptures = (Globals::blackPawnCaptures[i] & (enemies | st.enpassant));
 			basicMovement = pawnMoves | pawnCaptures;
 		}
-		if (bit & board.pawns & board.white)
+		if (bit & st.board.pawns & st.board.white)
 		{
 			pawnMoves = (Globals::whitePawnMoves[i] & rookMoves & empty);
 			pawnCaptures = (Globals::whitePawnCaptures[i] & (enemies | st.enpassant));
 			basicMovement = pawnMoves | pawnCaptures;
 		}
-		if (bit & (board.bishops | board.queens)) basicMovement |= bishopMoves;
-		if (bit & (board.rooks | board.queens)) basicMovement |= rookMoves;
+		if (bit & (st.board.bishops | st.board.queens)) basicMovement |= bishopMoves;
+		if (bit & (st.board.rooks | st.board.queens)) basicMovement |= rookMoves;
 
 		//squares attacked are movements for all pieces, except kings (kinda) and pawns. King "attacks" are still "real" for check calculations,
 		//but pawns always require separate care: en passant doesn't count for attacks (?) but normal diagonal captures do
 		//basicMovement &= ~allies;
-		if (bit & ~board.pawns)
+		if (bit & ~st.board.pawns)
 		{
-			if (bit & board.white) squaresAttackedByWhite |= basicMovement & ~board.white;
-			if (bit & board.black) squaresAttackedByBlack |= basicMovement & ~board.black;
+			if (bit & st.board.white) squaresAttackedByWhite |= basicMovement & ~st.board.white;
+			if (bit & st.board.black) squaresAttackedByBlack |= basicMovement & ~st.board.black;
 		}
-		if (bit & board.pawns)
+		if (bit & st.board.pawns)
 		{
-			if (bit & board.white) squaresAttackedByWhite |= Globals::whitePawnCaptures[i] & ~board.white;
-			if (bit & board.black) squaresAttackedByBlack |= Globals::blackPawnCaptures[i] & ~board.black;
+			if (bit & st.board.white) squaresAttackedByWhite |= Globals::whitePawnCaptures[i] & ~st.board.white;
+			if (bit & st.board.black) squaresAttackedByBlack |= Globals::blackPawnCaptures[i] & ~st.board.black;
 		}
 		if (!(bit & allies)) continue; //can't move empty or enemy pieces on our turn, but need that data for attacks calculation, so just don't allow writing out
 
-		ret.motionMatrix[i] = basicMovement & ~allies & ~board.kings; //preliminary list, need to then filter out king moves into squares attacked by enemies
+		ret.motionMatrix[i] = basicMovement & ~allies & ~st.board.kings; //preliminary list, need to then filter out king moves into squares attacked by enemies
 	}
 
 	uint64_t squaresAttackedByEnemy = st.whitesTurn ? squaresAttackedByBlack : squaresAttackedByWhite;
