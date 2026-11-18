@@ -242,6 +242,54 @@ SearchReturn GameState::findBestMoveInner(int remainingDepth, float alpha, float
 	return ret;
 }
 
+uint64_t GameState::getPathableSquaresForRookAt(uint64_t ind, uint64_t rookAllies)
+{
+	using enum Direction;
+	const auto& rays = Globals::directionRaysByOrigin;
+	uint64_t paths = 0, ray, occludersMask, firstOccluderInd, notEmpty = st.board.white | st.board.black;
+
+	//TODO: lzcnt/tzcnt return 64 for all zeroes, and shifting by that is UB (in fact, it breaks on my system by rejecting paths that are correct). 
+	//Thus, branches for now. Think about ways of removing branches
+	ray = rays[ind][int(LEFT)];
+	occludersMask = ray & notEmpty;
+	if (occludersMask)
+	{
+		firstOccluderInd = 63 - _lzcnt_u64(ray & notEmpty); //left path: find first occluder to the left, starting from bottom-right to left to top
+		paths |= ray & ~((1ull << firstOccluderInd) - 1); //this bitwise magic does everything to include first occluder into pathable squares. Allies will be filtered later
+	}
+	else paths |= ray;
+
+	ray = rays[ind][int(RIGHT)];
+	occludersMask = ray & notEmpty;
+	if (occludersMask)
+	{
+		firstOccluderInd = _tzcnt_u64(occludersMask); //right path: scan from top-left to right to bottom
+		paths |= ray & ((1ull << (firstOccluderInd + 1)) - 1);
+	}
+	else paths |= ray;
+
+	ray = rays[ind][int(UP)];
+	occludersMask = ray & notEmpty;
+	if (occludersMask)
+	{
+		firstOccluderInd = 63 - _lzcnt_u64(occludersMask);
+		paths |= ray & ~((1ull << firstOccluderInd) - 1);
+	}
+	else paths |= ray;
+
+	ray = rays[ind][int(DOWN)];
+	occludersMask = ray & notEmpty;
+	if (occludersMask)
+	{
+		firstOccluderInd = _tzcnt_u64(occludersMask);
+		paths |= ray & ((1ull << (firstOccluderInd + 1)) - 1);
+	}
+	else paths |= ray;
+
+	paths &= ~rookAllies & ~st.board.kings;
+	return paths; //commit_moves(paths, rookInd);
+}
+
 GameState GameState::newGame()
 {
 	return fromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
@@ -681,6 +729,51 @@ DerivedData GameState::deriveStateData(DeriveOptions opts)
 	uint64_t empty = ~notEmpty;
 
 	uint64_t squaresAttackedByWhite = 0, squaresAttackedByBlack = 0;
+	
+	const auto& rays = Globals::directionRaysByOrigin;
+	uint64_t asdd = st.board.white & st.board.rooks;
+	using enum Direction;
+	using enum MoveType;
+
+	//unpacks the moves bitmask and pushes it's moves into the move list. 
+	//if promotions == false (default), only pushes movements to destination squares
+	//otherwise, pushes only movements to destination squares WITH promotion (all 4 possible promotions pushed)
+	auto commit_moves = [&](uint64_t moves, uint64_t pieceInd, bool promotions = false) {
+		while (moves)
+		{
+			uint64_t pathDstInd = _tzcnt_u64(moves);
+			if (!promotions) ret.legalMoveList.push_back({ Square(pieceInd),Square(pathDstInd), MoveType::MOVE_TO_SQUARE });
+			else
+			{
+				for (auto it : { MOVE_AND_PROMOTE_TO_QUEEN, MOVE_AND_PROMOTE_TO_ROOK, MOVE_AND_PROMOTE_TO_BISHOP, MOVE_AND_PROMOTE_TO_KNIGHT })
+					ret.legalMoveList.push_back({ Square(pieceInd),Square(pathDstInd), it });
+			}
+			moves &= ~(1ull << pathDstInd);
+		}
+		};
+	//on our board, tzcnt basically scans from from top-left to bottom right, lzcnt - from bottom-right to top-left (inverse of lzcnt)
+	//Thus, one such instruction can do entire loop's worth of scanning
+
+	uint64_t whiteRookLike = st.board.white & (st.board.rooks | st.board.queens);
+	uint64_t blackRookLike = st.board.black & (st.board.rooks | st.board.queens);
+	while (whiteRookLike)
+	{
+		uint64_t ind = _tzcnt_u64(whiteRookLike);
+		uint64_t paths = this->getPathableSquaresForRookAt(ind, st.board.white);
+		squaresAttackedByWhite |= paths;
+		whiteRookLike &= ~(1ull << ind);
+		if (st.whitesTurn) commit_moves(paths, ind);
+	}
+	while (blackRookLike)
+	{
+		uint64_t ind = _tzcnt_u64(blackRookLike);
+		uint64_t paths = this->getPathableSquaresForRookAt(ind, st.board.black);
+		squaresAttackedByBlack |= paths;
+		blackRookLike &= ~(1ull << ind);
+		if (!st.whitesTurn) commit_moves(paths, ind);
+	}
+	
+	/*
 	for (int i = 0; i < 64; ++i)
 	{
 		uint64_t bit = 1ull << i;
@@ -801,7 +894,8 @@ DerivedData GameState::deriveStateData(DeriveOptions opts)
 
 		ret.motionMatrix[i] = basicMovement & ~allies & ~st.board.kings; //preliminary list, need to then filter out king moves into squares attacked by enemies
 	}
-
+	*/
+	
 	uint64_t squaresAttackedByEnemy = st.whitesTurn ? squaresAttackedByBlack : squaresAttackedByWhite;
 	int kingIndex = _tzcnt_u64(allies & st.board.kings);
 	ret.whiteKingIndex = _tzcnt_u64(st.board.kings & st.board.white);

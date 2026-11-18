@@ -94,7 +94,7 @@ void Globals::init()
 				writeBack |= 1ull << Square(x, y).toIndex();
 				x += sx; y += sy;
 			}
-		};
+			};
 
 		int k = from.toIndex();
 		using enum Direction;

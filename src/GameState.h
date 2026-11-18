@@ -104,6 +104,10 @@ public:
 	SearchReturn findBestMove(SearchParams params);
 private:
 	SearchReturn findBestMoveInner(int remainingDepth, float alpha, float beta, const SearchParams& params);
+
+	//Returns a bit mask of squares a rook at square ind can path into. This only checks obstructions, not legality of moves.
+	//rookAllies are used to filter out allies and paths blocked by them and must be a mask of pieces same team as the rook in question
+	uint64_t getPathableSquaresForRookAt(uint64_t ind, uint64_t rookAllies);
 public:
 	StaticArray<StateStackEntry, 10240> stateStack;
 
