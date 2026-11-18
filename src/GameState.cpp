@@ -342,6 +342,7 @@ void GameState::reset()
 	*this = newGame();
 }
 
+/*
 void GameState::getAllLegalMoves(MoveList& ret)
 {
 	for (Square sq : Square::all_inBounds())
@@ -553,7 +554,7 @@ bool GameState::isTeamsKingChecked(Team team)
 
 	return squareIsAttackedFor(kingX, kingY, team);
 }
-
+*/
 MoveResult GameState::tryMakeMove(const Move& move)
 {
 	DerivedData dd = deriveStateData();
