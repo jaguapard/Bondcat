@@ -244,6 +244,26 @@ GameState GameState::newGame()
 	return fromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 }
 
+Piece GameState::getPieceAt(Square s) const
+{
+	using enum TeamedPieceType;
+	assert(s.inBounds());
+	uint64_t bit = 1ull << s.toIndex();
+	if (bit & st.board.white & st.board.kings) return WHITE_KING;
+	if (bit & st.board.white & st.board.queens) return WHITE_QUEEN;
+	if (bit & st.board.white & st.board.rooks) return WHITE_ROOK;
+	if (bit & st.board.white & st.board.bishops) return WHITE_BISHOP;
+	if (bit & st.board.white & st.board.knights) return WHITE_KNIGHT;
+	if (bit & st.board.white & st.board.pawns) return WHITE_PAWN;
+	if (bit & st.board.black & st.board.kings) return BLACK_KING;
+	if (bit & st.board.black & st.board.queens) return BLACK_QUEEN;
+	if (bit & st.board.black & st.board.rooks) return BLACK_ROOK;
+	if (bit & st.board.black & st.board.bishops) return BLACK_BISHOP;
+	if (bit & st.board.black & st.board.knights) return BLACK_KNIGHT;
+	if (bit & st.board.black & st.board.pawns) return BLACK_PAWN;
+	return EMPTY;
+}
+
 void GameState::updateStatus()
 {
 	Team nextTeamToMove = st.whitesTurn ? Team::WHITE : Team::BLACK;

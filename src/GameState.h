@@ -108,6 +108,8 @@ public:
 	std::optional<GameStatus> gameStatus;
 	std::map<Board, int> seenPositions;
 
+	Piece getPieceAt(Square s) const;
+
 	void updateStatus();
 	//derives various useful data from current game state, such as:
 	//legal moves on this position
