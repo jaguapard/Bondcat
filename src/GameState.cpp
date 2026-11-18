@@ -731,7 +731,9 @@ DerivedData GameState::deriveStateData(DeriveOptions opts)
 				rookOccluders &= ~k;
 				if (notEmpty & k) break;
 			}
-			rookMoves = Globals::rookMoves[i] & ~rookOccluders;
+
+			uint64_t m = Globals::directionRaysByOrigin[i][int(Direction::UP)] | Globals::directionRaysByOrigin[i][int(Direction::DOWN)] | Globals::directionRaysByOrigin[i][int(Direction::LEFT)] | Globals::directionRaysByOrigin[i][int(Direction::RIGHT)];
+			rookMoves = m & ~rookOccluders;
 		}
 		if (bit & (st.board.bishops | st.board.queens))
 		{
@@ -761,7 +763,9 @@ DerivedData GameState::deriveStateData(DeriveOptions opts)
 				bishopOccluders &= ~k;
 				if (notEmpty & k) break;
 			}
-			bishopMoves = Globals::bishopMoves[i] & ~bishopOccluders;
+
+			uint64_t m = Globals::directionRaysByOrigin[i][int(Direction::LEFT_UP)] | Globals::directionRaysByOrigin[i][int(Direction::RIGHT_UP)] | Globals::directionRaysByOrigin[i][int(Direction::LEFT_DOWN)] | Globals::directionRaysByOrigin[i][int(Direction::RIGHT_DOWN)];
+			bishopMoves = m & ~bishopOccluders;
 		}
 
 		uint64_t pawnMoves = 0, pawnCaptures = 0;

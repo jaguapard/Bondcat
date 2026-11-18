@@ -290,7 +290,7 @@ int main(int argc, char** argv)
 		boardDrawCtx.textures = &pieceTextures;
 		SearchParams params;
 		params.maxDepth = 4;
-		bool engineEnabled = true;
+		bool engineEnabled = false;
 		while (true)
 		{
 			SDL_Event event;
