@@ -95,6 +95,7 @@ struct DerivedData
 struct DeriveOptions
 {
 	bool makeLegalMoveList = true;
+	bool skipPinChecks = false;
 };
 
 struct GameState

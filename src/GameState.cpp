@@ -800,61 +800,86 @@ DerivedData GameState::deriveStateData(DeriveOptions opts)
 
 	}*/
 
-	uint64_t lastRankForPawnsMask = st.whitesTurn ? 0xFFull : (0xFFull << 56);
-	for (int srcInd = 0; srcInd < 64; ++srcInd)
+	if (opts.makeLegalMoveList)
 	{
-		uint64_t srcBit = 1ull << srcInd;
-		if (ret.motionMatrix[srcInd] == 0) continue;
-		for (int dstInd = 0; dstInd < 64; ++dstInd)
+		uint64_t lastRankForPawnsMask = st.whitesTurn ? 0xFFull : (0xFFull << 56);
+		for (int srcInd = 0; srcInd < 64; ++srcInd)
 		{
-			uint64_t dstBit = 1ull << dstInd;
-			if (!(ret.motionMatrix[srcInd] & (1ull << dstInd))) continue;
-
-			Move m(Square(srcInd), Square(dstInd), MoveType::MOVE_TO_SQUARE);
-
-			bool promotion = (st.board.pawns & srcBit) && (lastRankForPawnsMask & dstBit);
-			if (!promotion) ret.legalMoveList.push_back(m);
-			else
+			uint64_t srcBit = 1ull << srcInd;
+			if (ret.motionMatrix[srcInd] == 0) continue;
+			for (int dstInd = 0; dstInd < 64; ++dstInd)
 			{
-				for (auto it : { MoveType::MOVE_AND_PROMOTE_TO_QUEEN, MoveType::MOVE_AND_PROMOTE_TO_ROOK, MoveType::MOVE_AND_PROMOTE_TO_BISHOP, MoveType::MOVE_AND_PROMOTE_TO_KNIGHT })
+				uint64_t dstBit = 1ull << dstInd;
+				if (!(ret.motionMatrix[srcInd] & (1ull << dstInd))) continue;
+
+				Move m(Square(srcInd), Square(dstInd), MoveType::MOVE_TO_SQUARE);
+
+				bool promotion = (st.board.pawns & srcBit) && (lastRankForPawnsMask & dstBit);
+				if (!promotion) ret.legalMoveList.push_back(m);
+				else
 				{
-					m.type = it;
-					ret.legalMoveList.push_back(m);
+					for (auto it : { MoveType::MOVE_AND_PROMOTE_TO_QUEEN, MoveType::MOVE_AND_PROMOTE_TO_ROOK, MoveType::MOVE_AND_PROMOTE_TO_BISHOP, MoveType::MOVE_AND_PROMOTE_TO_KNIGHT })
+					{
+						m.type = it;
+						ret.legalMoveList.push_back(m);
+					}
 				}
+			}
+		}
+
+		if (st.whitesTurn)
+		{
+			if (st.castlingRights.whiteKingside)
+			{
+				uint64_t emptyCheck = (1ull << 61) | (1ull << 62);
+				uint64_t checkCheck = (1ull << 60) | (1ull << 61) | (1ull << 62);
+				if (!(notEmpty & emptyCheck) && !(squaresAttackedByEnemy & checkCheck)) ret.legalMoveList.push_back(Move({}, {}, MoveType::WHITE_KINGSIDE_CASTLE));
+			}
+			if (st.castlingRights.whiteQueenside)
+			{
+				uint64_t emptyCheck = (1ull << 57) | (1ull << 58) | (1ull << 59);
+				uint64_t checkCheck = (1ull << 58) | (1ull << 59) | (1ull << 60);
+				if (!(notEmpty & emptyCheck) && !(squaresAttackedByEnemy & checkCheck)) ret.legalMoveList.push_back(Move({}, {}, MoveType::WHITE_QUEENSIDE_CASTLE));
+			}
+		}
+		else
+		{
+			if (st.castlingRights.blackKingside)
+			{
+				uint64_t emptyCheck = (1ull << 5) | (1ull << 6);
+				uint64_t checkCheck = (1ull << 4) | (1ull << 5) | (1ull << 6);
+				if (!(notEmpty & emptyCheck) && !(squaresAttackedByEnemy & checkCheck)) ret.legalMoveList.push_back(Move({}, {}, MoveType::BLACK_KINGSIDE_CASTLE));
+			}
+			if (st.castlingRights.blackQueenside)
+			{
+				uint64_t emptyCheck = (1ull << 1) | (1ull << 2) | (1ull << 3);
+				uint64_t checkCheck = (1ull << 2) | (1ull << 3) | (1ull << 4);
+				if (!(notEmpty & emptyCheck) && !(squaresAttackedByEnemy & checkCheck)) ret.legalMoveList.push_back(Move({}, {}, MoveType::BLACK_QUEENSIDE_CASTLE));
 			}
 		}
 	}
 
-	if (st.whitesTurn)
+	if (!opts.skipPinChecks)
 	{
-		if (st.castlingRights.whiteKingside)
+		//final filter: disallow moves that put or leave our king in check
+		DeriveOptions opts2;
+		opts2.makeLegalMoveList = false;
+		opts2.skipPinChecks = true;
+		bool savedWhitesTurn = st.whitesTurn;
+		for (int i = 0; i < ret.legalMoveList.size(); ++i)
 		{
-			uint64_t emptyCheck = (1ull << 61) | (1ull << 62);
-			uint64_t checkCheck = (1ull << 60) | (1ull << 61) | (1ull << 62);
-			if (!(notEmpty & emptyCheck) && !(squaresAttackedByEnemy & checkCheck)) ret.legalMoveList.push_back(Move({}, {}, MoveType::WHITE_KINGSIDE_CASTLE));
-		}
-		if (st.castlingRights.whiteQueenside)
-		{
-			uint64_t emptyCheck = (1ull << 57) | (1ull << 58) | (1ull << 59);
-			uint64_t checkCheck = (1ull << 58) | (1ull << 59) | (1ull << 60);
-			if (!(notEmpty & emptyCheck) && !(squaresAttackedByEnemy & checkCheck)) ret.legalMoveList.push_back(Move({}, {}, MoveType::WHITE_QUEENSIDE_CASTLE));
+			MoveRollbackData rollback = this->makeMove(ret.legalMoveList[i]);
+			DerivedData dd = deriveStateData(opts2);
+			if ((savedWhitesTurn ? dd.whiteChecked : dd.blackChecked))
+			{
+				ret.legalMoveList[i--] = ret.legalMoveList.back();
+				ret.legalMoveList.pop_back();
+			}
+			this->rollbackMove(rollback);
 		}
 	}
-	else
-	{
-		if (st.castlingRights.blackKingside)
-		{
-			uint64_t emptyCheck = (1ull << 5) | (1ull << 6);
-			uint64_t checkCheck = (1ull << 4) | (1ull << 5) | (1ull << 6);
-			if (!(notEmpty & emptyCheck) && !(squaresAttackedByEnemy & checkCheck)) ret.legalMoveList.push_back(Move({}, {}, MoveType::BLACK_KINGSIDE_CASTLE));
-		}
-		if (st.castlingRights.blackQueenside)
-		{
-			uint64_t emptyCheck = (1ull << 1) | (1ull << 2) | (1ull << 3);
-			uint64_t checkCheck = (1ull << 2) | (1ull << 3) | (1ull << 4);
-			if (!(notEmpty & emptyCheck) && !(squaresAttackedByEnemy & checkCheck)) ret.legalMoveList.push_back(Move({}, {}, MoveType::BLACK_QUEENSIDE_CASTLE));
-		}
-	}
+
+	//TODO: maybe can put game status update here too?
 
 	return ret;
 }
