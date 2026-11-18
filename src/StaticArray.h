@@ -18,6 +18,16 @@ public:
 	T& operator[](size_t i) { return arr[i]; }
 	const T& operator[](size_t i) const { return arr[i]; }
 
+	void pop_back()
+	{
+		assert(count > 0);
+		--count;
+	}
+
+	T& back() { return arr[count - 1]; }
+	const T& back() const { return arr[count - 1]; }
+
+
 	auto begin() { return arr.begin(); }
 	auto end() { return arr.begin() + count; }
 
