@@ -1,4 +1,15 @@
 #pragma once
+enum class Direction
+{
+	LEFT_UP,
+	RIGHT_UP,
+	LEFT_DOWN,
+	RIGHT_DOWN,
+	LEFT,
+	RIGHT,
+	UP,
+	DOWN,
+};
 
 enum class MoveCheckStatus
 {

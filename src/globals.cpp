@@ -83,4 +83,29 @@ void Globals::init()
 			if (dy == -1 && abs(dx) == 1) whitePawnCaptures[i] |= dstBit;
 		}
 	}
+
+	for (Square from : Square::all_inBounds())
+	{
+		auto slider_run = [&](int sx, int sy, uint64_t& writeBack) {
+			int x = from.x + sx; int y = from.y + sy;
+			writeBack = 0;
+			while (Square(x, y).inBounds())
+			{
+				writeBack |= 1ull << Square(x, y).toIndex();
+				x += sx; y += sy;
+			}
+		};
+
+		int k = from.toIndex();
+		using enum Direction;
+		slider_run(-1, -1, directionRaysByOrigin[k][int(LEFT_UP)]);
+		slider_run(1, -1, directionRaysByOrigin[k][int(RIGHT_UP)]);
+		slider_run(-1, 1, directionRaysByOrigin[k][int(LEFT_DOWN)]);
+		slider_run(1, 1, directionRaysByOrigin[k][int(RIGHT_DOWN)]);
+
+		slider_run(-1, 0, directionRaysByOrigin[k][int(LEFT)]);
+		slider_run(1, 0, directionRaysByOrigin[k][int(RIGHT)]);
+		slider_run(0, -1, directionRaysByOrigin[k][int(UP)]);
+		slider_run(0, 1, directionRaysByOrigin[k][int(DOWN)]);
+	}
 }
