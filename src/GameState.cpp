@@ -38,12 +38,11 @@ SearchReturn GameState::findBestMove(SearchParams params)
 	
 	bool endgameTablebaseHit = [&]() {
 		//The root node sets up the search start time and checks for tablebase hits, if any.
-		int pieceCount = 0;
-		uint64_t whitePieces = 0, blackPieces = 0, kings = 0, queens = 0, rooks = 0, bishops = 0, knights = 0, pawns = 0;
-
-		//Fathom uses different convention!!!!
+		//DO NOT pass st.board stuff here without change, since Fathom uses different convention!!!!
 		//Ours: a8=0, h8=7, ..., a1=56,h1=63
 		//Fathom: a1=0 (!), h1 = 7, a8 = 56, h8 = 63
+		int pieceCount = 0;
+		uint64_t whitePieces = 0, blackPieces = 0, kings = 0, queens = 0, rooks = 0, bishops = 0, knights = 0, pawns = 0;
 		int i = 0;
 		for (char rank = '1'; rank <= '8'; ++rank)
 		{
@@ -74,21 +73,21 @@ SearchReturn GameState::findBestMove(SearchParams params)
 				if (black) blackPieces |= pieceMask;
 				if (white) whitePieces |= pieceMask;
 			}
-			if (pieceCount > TB_LARGEST || !castlingRights.nonePresent()) return false;
+			if (pieceCount > TB_LARGEST || !st.castlingRights.nonePresent()) return false;
 		}
 
 		unsigned int tb_ret;
 		{
 			int enpassantIndex = 0;
-			if (this->enpassant) enpassantIndex = this->enpassant->x + (7 - this->enpassant->y) * 8;
+			if (st.enpassant) enpassantIndex = Square(_tzcnt_u64(st.enpassant)).toFathomIndex();
 			std::lock_guard lck(Globals::tablebase_mutex);
-			tb_ret = tb_probe_root(whitePieces, blackPieces, kings, queens, rooks, bishops, knights, pawns, this->halfmoves, false, enpassantIndex, this->whitesTurn, nullptr);
+			tb_ret = tb_probe_root(whitePieces, blackPieces, kings, queens, rooks, bishops, knights, pawns, st.halfmoves, false, enpassantIndex, st.whitesTurn, nullptr);
 		}
 
 		if (tb_ret == TB_RESULT_FAILED) return false;
 		if (tb_ret == TB_RESULT_CHECKMATE)
 		{
-			ret.evaluation = this->whitesTurn ? 10000 : -10000;
+			ret.evaluation = st.whitesTurn ? 10000 : -10000;
 			return true;
 		}
 		else if (tb_ret == TB_RESULT_STALEMATE)
