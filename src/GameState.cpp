@@ -286,8 +286,52 @@ uint64_t GameState::getPathableSquaresForRookAt(uint64_t ind, uint64_t rookAllie
 	}
 	else paths |= ray;
 
-	paths &= ~rookAllies & ~st.board.kings;
-	return paths; //commit_moves(paths, rookInd);
+	return paths & ~rookAllies & ~st.board.kings;
+}
+
+uint64_t GameState::getPathableSquaresForBishopAt(uint64_t ind, uint64_t bishopAllies)
+{
+	using enum Direction;
+	const auto& rays = Globals::directionRaysByOrigin;
+	uint64_t paths = 0, ray, occludersMask, firstOccluderInd, notEmpty = st.board.white | st.board.black;
+
+	ray = rays[ind][int(LEFT_UP)];
+	occludersMask = ray & notEmpty;
+	if (occludersMask)
+	{
+		firstOccluderInd = 63-_lzcnt_u64(occludersMask);
+		paths |= ray & ~((1ull << firstOccluderInd) - 1);
+	}
+	else paths |= ray;
+
+	ray = rays[ind][int(RIGHT_UP)];
+	occludersMask = ray & notEmpty;
+	if (occludersMask)
+	{
+		firstOccluderInd = 63 - _lzcnt_u64(occludersMask);
+		paths |= ray & ~((1ull << firstOccluderInd) - 1);
+	}
+	else paths |= ray;
+
+	ray = rays[ind][int(LEFT_DOWN)];
+	occludersMask = ray & notEmpty;
+	if (occludersMask)
+	{
+		firstOccluderInd = _tzcnt_u64(occludersMask);
+		paths |= ray & ((1ull << (firstOccluderInd+1)) - 1);
+	}
+	else paths |= ray;
+
+	ray = rays[ind][int(RIGHT_DOWN)];
+	occludersMask = ray & notEmpty;
+	if (occludersMask)
+	{
+		firstOccluderInd = _tzcnt_u64(occludersMask);
+		paths |= ray & ((1ull << (firstOccluderInd + 1)) - 1);
+	}
+	else paths |= ray;
+
+	return paths & ~bishopAllies & ~st.board.kings;
 }
 
 GameState GameState::newGame()
@@ -772,7 +816,25 @@ DerivedData GameState::deriveStateData(DeriveOptions opts)
 		blackRookLike &= ~(1ull << ind);
 		if (!st.whitesTurn) commit_moves(paths, ind);
 	}
-	
+
+	uint64_t whiteBishopLike = st.board.white & (st.board.bishops | st.board.queens);
+	uint64_t blackBishopLike = st.board.black & (st.board.bishops | st.board.queens);
+	while (whiteBishopLike)
+	{
+		uint64_t ind = _tzcnt_u64(whiteBishopLike);
+		uint64_t paths = this->getPathableSquaresForBishopAt(ind, st.board.white);
+		squaresAttackedByWhite |= paths;
+		whiteBishopLike &= ~(1ull << ind);
+		if (st.whitesTurn) commit_moves(paths, ind);
+	}
+	while (blackBishopLike)
+	{
+		uint64_t ind = _tzcnt_u64(blackBishopLike);
+		uint64_t paths = this->getPathableSquaresForBishopAt(ind, st.board.black);
+		squaresAttackedByBlack |= paths;
+		blackBishopLike &= ~(1ull << ind);
+		if (!st.whitesTurn) commit_moves(paths, ind);
+	}
 	/*
 	for (int i = 0; i < 64; ++i)
 	{
