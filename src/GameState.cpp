@@ -854,6 +854,34 @@ DerivedData GameState::deriveStateData(DeriveOptions opts)
 		blackBishopLike &= ~(1ull << ind);
 		if (opts.makeLegalMoveList && !st.whitesTurn) commit_moves(paths & ~st.board.kings, ind);
 	}
+
+	uint64_t whitePawns = st.board.pawns & st.board.white, blackPawns = st.board.pawns & st.board.black;
+	while (whitePawns)
+	{
+		uint64_t ind = _tzcnt_u64(whitePawns);
+		uint64_t paths = this->getSquaresAttackedByRookAt(ind, st.board.white) & Globals::whitePawnMoves[ind] & empty;
+		whitePawns &= ~(1ull << ind);
+		squaresAttackedByWhite |= Globals::whitePawnCaptures[ind];
+		if (opts.makeLegalMoveList && st.whitesTurn)
+		{
+			commit_moves(paths & ~st.board.kings, ind, ind >= 8 && ind < 16); //moves+promotions
+			commit_moves(Globals::whitePawnCaptures[ind] & ~st.board.kings & st.board.black, ind, ind >= 8 && ind < 16);
+			commit_moves(Globals::whitePawnCaptures[ind] & st.enpassant, ind);
+		}
+	}
+	while (blackPawns)
+	{
+		uint64_t ind = _tzcnt_u64(blackPawns);
+		uint64_t paths = this->getSquaresAttackedByRookAt(ind, st.board.black) & Globals::blackPawnMoves[ind] & empty;
+		blackPawns &= ~(1ull << ind);
+		squaresAttackedByBlack |= Globals::blackPawnCaptures[ind];
+		if (opts.makeLegalMoveList && !st.whitesTurn)
+		{
+			commit_moves(paths & ~st.board.kings, ind, ind >= 48 && ind < 56); //moves+promotions
+			commit_moves(Globals::blackPawnCaptures[ind] & ~st.board.kings & st.board.white, ind, ind >= 48 && ind < 56);
+			commit_moves(Globals::blackPawnCaptures[ind] & st.enpassant, ind);
+		}
+	}
 	
 	int kingIndex = _tzcnt_u64(allies & st.board.kings);
 	ret.whiteKingIndex = _tzcnt_u64(st.board.kings & st.board.white);
