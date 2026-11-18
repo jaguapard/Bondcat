@@ -269,14 +269,14 @@ void GameState::updateStatus()
 		if (rollback) this->rollbackMove(*rollback);
 		if (checkmate)
 		{
-			this->gameStatus = whitesTurn ? GameStatus::BLACK_WON_BY_CHECKMATE : GameStatus::WHITE_WON_BY_CHECKMATE;
+			this->gameStatus = st.whitesTurn ? GameStatus::BLACK_WON_BY_CHECKMATE : GameStatus::WHITE_WON_BY_CHECKMATE;
 			return;
 		}
 	}
 	else if (allLegalMoves.size() == 0) { this->gameStatus = GameStatus::DRAW_STALEMATE; return; };
 	this->gameStatus = GameStatus::ONGOING;
 
-	if (this->halfmoves >= 100) { this->gameStatus = GameStatus::DRAW_FIFTY_MOVE_RULE; return; };
+	if (st.halfmoves >= 100) { this->gameStatus = GameStatus::DRAW_FIFTY_MOVE_RULE; return; };
 	//TODO: insufficient material
 
 	/* //unsure about this
@@ -314,7 +314,7 @@ void GameState::updateStatus()
 		}();
 	if (insufficiet) this->status = GameStatus::DRAW_INSUFFICIENT_MATERIAL;
 	*/
-	if (this->seenPositions[board] >= 3) { this->gameStatus = GameStatus::DRAW_THREEFOLD_REPETITION; return; }
+	if (this->seenPositions[st.board] >= 3) { this->gameStatus = GameStatus::DRAW_THREEFOLD_REPETITION; return; }
 
 	//if (!this->gameStatus) __debugbreak()
 }
@@ -360,19 +360,6 @@ void GameState::getAllLegalMovesForPieceAt(Square sq, MoveList& ret)
 Piece& GameState::getPieceAt(Square s)
 {
 	return board[s.y * 8 + s.x];
-}
-
-std::pair<Piece&, Piece&> GameState::getPiecesAtCaslingSquares(Move move)
-{
-	assert(move.isCastlingMove());
-	switch (move.type)
-	{
-	case MoveType::WHITE_KINGSIDE_CASTLE: return { getPieceAt("e1"), getPieceAt("h1") };
-	case MoveType::BLACK_KINGSIDE_CASTLE: return { getPieceAt("e8"), getPieceAt("h8") };
-	case MoveType::WHITE_QUEENSIDE_CASTLE: return { getPieceAt("e1"), getPieceAt("a1") };
-	case MoveType::BLACK_QUEENSIDE_CASTLE: return { getPieceAt("e8"), getPieceAt("a8") };
-	default: throw std::runtime_error("Invalid input for getPiecesAtCaslingSquares (move type is not one of the castling moves).");
-	}
 }
 
 MoveCheckStatus GameState::isLegalCastlingMove(Move move)
@@ -649,6 +636,209 @@ void GameState::rollbackMove(const MoveRollbackData& rollbackData)
 	this->st = rollbackData;
 }
 
+DerivedData GameState::deriveStateData(DeriveOptions opts)
+{
+	DerivedData ret;
+	ret.motionMatrix = { 0 };
+	uint64_t allies = st.whitesTurn ? st.board.white : st.board.black;
+	uint64_t enemies = st.whitesTurn ? st.board.black : st.board.white;
+	uint64_t notEmpty = st.board.black | st.board.white;
+	uint64_t empty = ~notEmpty;
+
+	uint64_t squaresAttackedByWhite = 0, squaresAttackedByBlack = 0;
+	for (int i = 0; i < 64; ++i)
+	{
+		uint64_t bit = 1ull << i;
+		if (bit & empty) continue; //TODO: can instead start and increase i by lzcnt?
+		uint64_t teamedBit = bit & allies;
+		uint64_t otherTeamBit = bit & enemies;
+
+		int fromX = i % 8;
+		int fromY = i / 8;
+		//put all these bits into LSB
+		//bit >>= 63 - i;
+		//teamedBit >>= 63 - i;
+		//otherTeamBit >>= 63 - i;
+
+		uint64_t basicMovement = 0;
+		//TODO: ifs for now, optimize later
+		if (bit & st.board.kings) basicMovement = Globals::kingMoves[i];
+		if (bit & st.board.knights) basicMovement = Globals::knightMoves[i];
+
+		//Sliding pieces (rooks, bishops, queens and pawn forward moves) currently use "blacklist":
+		//Start will all squares blacklisted, whitelist until first occluder. 
+		//But still whitelist the occluder square, since we can capture enemy piece, and allies are filtered out by final &= allies
+		uint64_t rookMoves = 0, bishopMoves = 0;
+		if (bit & (st.board.rooks | st.board.queens | st.board.pawns))
+		{
+			uint64_t rookOccluders = -1ll;
+			for (int dstX = fromX - 1; dstX >= 0; --dstX)
+			{
+				uint64_t k = 1ull << (fromY * 8 + dstX);
+				rookOccluders &= ~k;
+				if (notEmpty & k) break;
+			}
+			for (int dstX = fromX + 1; dstX < 8; ++dstX)
+			{
+				uint64_t k = 1ull << (fromY * 8 + dstX);
+				rookOccluders &= ~k;
+				if (notEmpty & k) break;
+			}
+			for (int dstY = fromY + 1; dstY < 8; ++dstY)
+			{
+				uint64_t k = 1ull << (dstY * 8 + fromX);
+				rookOccluders &= ~k;
+				if (notEmpty & k) break;
+			}
+			for (int dstY = fromY - 1; dstY >= 0; --dstY)
+			{
+				uint64_t k = 1ull << (dstY * 8 + fromX);
+				rookOccluders &= ~k;
+				if (notEmpty & k) break;
+			}
+			rookMoves = Globals::rookMoves[i] & ~rookOccluders;
+		}
+		if (bit & (st.board.bishops | st.board.queens))
+		{
+			uint64_t bishopOccluders = -1ll;
+			int dstX = fromX - 1, dstY = fromY - 1;
+			for (; dstX >= 0 && dstY >= 0; --dstX, --dstY) //left-up diagonal
+			{
+				uint64_t k = 1ull << (dstY * 8 + dstX);
+				bishopOccluders &= ~k;
+				if (notEmpty & k) break;
+			}
+			for (dstX = fromX + 1, dstY = fromY - 1; dstX < 8 && dstY >= 0; ++dstX, --dstY) //right-up diagonal
+			{
+				uint64_t k = 1ull << (dstY * 8 + dstX);
+				bishopOccluders &= ~k;
+				if (notEmpty & k) break;
+			}
+			for (dstX = fromX - 1, dstY = fromY + 1; dstX >= 0 && dstY < 8; --dstX, ++dstY) //left-down diagonal
+			{
+				uint64_t k = 1ull << (dstY * 8 + dstX);
+				bishopOccluders &= ~k;
+				if (notEmpty & k) break;
+			}
+			for (dstX = fromX + 1, dstY = fromY + 1; dstX < 8 && dstY < 8; ++dstX, ++dstY) //right-down diagonal
+			{
+				uint64_t k = 1ull << (dstY * 8 + dstX);
+				bishopOccluders &= ~k;
+				if (notEmpty & k) break;
+			}
+			bishopMoves = Globals::bishopMoves[i] & ~bishopOccluders;
+		}
+
+		uint64_t pawnMoves = 0, pawnCaptures = 0;
+		if (bit & st.board.pawns & st.board.black)
+		{
+			pawnMoves = (Globals::blackPawnMoves[i] & rookMoves & empty);
+			pawnCaptures = (Globals::blackPawnCaptures[i] & (enemies | st.enpassant));
+			basicMovement = pawnMoves | pawnCaptures;
+		}
+		if (bit & board.pawns & board.white)
+		{
+			pawnMoves = (Globals::whitePawnMoves[i] & rookMoves & empty);
+			pawnCaptures = (Globals::whitePawnCaptures[i] & (enemies | st.enpassant));
+			basicMovement = pawnMoves | pawnCaptures;
+		}
+		if (bit & (board.bishops | board.queens)) basicMovement |= bishopMoves;
+		if (bit & (board.rooks | board.queens)) basicMovement |= rookMoves;
+
+		//squares attacked are movements for all pieces, except kings (kinda) and pawns. King "attacks" are still "real" for check calculations,
+		//but pawns always require separate care: en passant doesn't count for attacks (?) but normal diagonal captures do
+		//basicMovement &= ~allies;
+		if (bit & ~board.pawns)
+		{
+			if (bit & board.white) squaresAttackedByWhite |= basicMovement & ~board.white;
+			if (bit & board.black) squaresAttackedByBlack |= basicMovement & ~board.black;
+		}
+		if (bit & board.pawns)
+		{
+			if (bit & board.white) squaresAttackedByWhite |= Globals::whitePawnCaptures[i] & ~board.white;
+			if (bit & board.black) squaresAttackedByBlack |= Globals::blackPawnCaptures[i] & ~board.black;
+		}
+		if (!(bit & allies)) continue; //can't move empty or enemy pieces on our turn, but need that data for attacks calculation, so just don't allow writing out
+
+		ret.motionMatrix[i] = basicMovement & ~allies & ~board.kings; //preliminary list, need to then filter out king moves into squares attacked by enemies
+	}
+
+	uint64_t squaresAttackedByEnemy = st.whitesTurn ? squaresAttackedByBlack : squaresAttackedByWhite;
+	int kingIndex = _tzcnt_u64(allies & st.board.kings);
+	ret.whiteKingIndex = _tzcnt_u64(st.board.kings & st.board.white);
+	ret.blackKingIndex = _tzcnt_u64(st.board.kings & st.board.black);
+	ret.motionMatrix[kingIndex] &= ~squaresAttackedByEnemy;
+	ret.squaresAttackedByBlack = squaresAttackedByBlack;
+	ret.squaresAttackedByWhite = squaresAttackedByWhite;
+
+	ret.whiteChecked = st.board.kings & st.board.white & squaresAttackedByBlack;
+	ret.blackChecked = st.board.kings & st.board.black & squaresAttackedByWhite;
+	/*for (int i = 0; i < 64; ++i)
+	{
+		uint64_t bit = 1ull << i;
+		if (board.kings & bit) continue; //TODO: lz/tzcnt for king index: kingIndex = tzcnt(allies & board.kings)
+
+	}*/
+
+	uint64_t lastRankForPawnsMask = st.whitesTurn ? 0xFFull : (0xFFull << 56);
+	for (int srcInd = 0; srcInd < 64; ++srcInd)
+	{
+		uint64_t srcBit = 1ull << srcInd;
+		if (ret.motionMatrix[srcInd] == 0) continue;
+		for (int dstInd = 0; dstInd < 64; ++dstInd)
+		{
+			uint64_t dstBit = 1ull << dstInd;
+			if (!(ret.motionMatrix[srcInd] & (1ull << dstInd))) continue;
+
+			Move m(Square(srcInd), Square(dstInd), MoveType::MOVE_TO_SQUARE);
+
+			bool promotion = (st.board.pawns & srcBit) && (lastRankForPawnsMask & dstBit);
+			if (!promotion) ret.legalMoveList.push_back(m);
+			else
+			{
+				for (auto it : { MoveType::MOVE_AND_PROMOTE_TO_QUEEN, MoveType::MOVE_AND_PROMOTE_TO_ROOK, MoveType::MOVE_AND_PROMOTE_TO_BISHOP, MoveType::MOVE_AND_PROMOTE_TO_KNIGHT })
+				{
+					m.type = it;
+					ret.legalMoveList.push_back(m);
+				}
+			}
+		}
+	}
+
+	if (st.whitesTurn)
+	{
+		if (st.castlingRights.whiteKingside)
+		{
+			uint64_t emptyCheck = (1ull << 61) | (1ull << 62);
+			uint64_t checkCheck = (1ull << 60) | (1ull << 61) | (1ull << 62);
+			if (!(notEmpty & emptyCheck) && !(squaresAttackedByEnemy & checkCheck)) ret.legalMoveList.push_back(Move({}, {}, MoveType::WHITE_KINGSIDE_CASTLE));
+		}
+		if (st.castlingRights.whiteQueenside)
+		{
+			uint64_t emptyCheck = (1ull << 57) | (1ull << 58) | (1ull << 59);
+			uint64_t checkCheck = (1ull << 58) | (1ull << 59) | (1ull << 60);
+			if (!(notEmpty & emptyCheck) && !(squaresAttackedByEnemy & checkCheck)) ret.legalMoveList.push_back(Move({}, {}, MoveType::WHITE_QUEENSIDE_CASTLE));
+		}
+	}
+	else
+	{
+		if (st.castlingRights.blackKingside)
+		{
+			uint64_t emptyCheck = (1ull << 5) | (1ull << 6);
+			uint64_t checkCheck = (1ull << 4) | (1ull << 5) | (1ull << 6);
+			if (!(notEmpty & emptyCheck) && !(squaresAttackedByEnemy & checkCheck)) ret.legalMoveList.push_back(Move({}, {}, MoveType::BLACK_KINGSIDE_CASTLE));
+		}
+		if (st.castlingRights.blackQueenside)
+		{
+			uint64_t emptyCheck = (1ull << 1) | (1ull << 2) | (1ull << 3);
+			uint64_t checkCheck = (1ull << 2) | (1ull << 3) | (1ull << 4);
+			if (!(notEmpty & emptyCheck) && !(squaresAttackedByEnemy & checkCheck)) ret.legalMoveList.push_back(Move({}, {}, MoveType::BLACK_QUEENSIDE_CASTLE));
+		}
+	}
+
+	return ret;
+}
+
 GameState GameState::fromFEN(const std::string& s)
 {
 	GameState ret;
@@ -718,24 +908,6 @@ std::string GameState::toFEN()
 		}
 	}
 	return codec.toFEN();
-}
-
-CompressedPosition::CompressedPosition(const std::array<Piece, 64>& board)
-{
-	//Piece class is now properly made, so unless something stupid is being done (like changing values in raw memory bypassing Piece and it's enum class machinery),
-	//the same this->bits should (TODO: verify) be same positions
-	static_assert(sizeof(this->bits) == sizeof(board));
-	memcpy(this->bits.data(), board.data(), sizeof(board));
-}
-
-bool CompressedPosition::operator<(const CompressedPosition& other) const
-{
-	for (int i = 0; i < std::size(bits); ++i)
-	{
-		if (bits[i] == other.bits[i]) continue;
-		return bits[i] < other.bits[i];
-	}
-	return false; //equal
 }
 
 std::string SearchReturn::toUCI() const

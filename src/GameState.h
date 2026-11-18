@@ -82,7 +82,21 @@ struct CastlingSquares
 };
 
 
-typedef StaticArray<Move, 4100> MoveList;
+typedef StaticArray<Move, 280> MoveList; //should probably fit all legal moves in classical, right?
+struct DerivedData
+{
+	std::array<uint64_t, 64> motionMatrix; //can piece at square i move into square j?
+	uint64_t squaresAttackedByBlack, squaresAttackedByWhite;
+	uint32_t whiteKingIndex, blackKingIndex;
+	bool whiteChecked, blackChecked;
+	StaticArray<Move, 280> legalMoveList;
+};
+
+struct DeriveOptions
+{
+	bool makeLegalMoveList = true;
+};
+
 struct GameState
 {
 public:
@@ -91,18 +105,20 @@ private:
 	SearchReturn findBestMoveInner(int remainingDepth, float alpha, float beta, const SearchParams& params);
 public:
 	MoveRollbackData st;
-
 	std::optional<GameStatus> gameStatus;
 	std::map<Board, int> seenPositions;
 
-	static GameState newGame();
-
 	void updateStatus();
-
-	void reset();
+	//derives various useful data from current game state, such as:
+	//legal moves on this position
+	//squares attacked by black/white
+	//whether or not a king is in check
+	DerivedData deriveStateData(DeriveOptions opts = {});
 
 	static GameState fromFEN(const std::string& fen);
 	std::string toFEN();
+	static GameState newGame();
+	void reset();
 
 	MoveResult tryMakeMove(const Move& move); //Applies move if it is legal 
 	MoveRollbackData makeMove(const Move& move); //Applies move without validation
