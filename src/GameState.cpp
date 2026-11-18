@@ -652,7 +652,7 @@ MoveRollbackData GameState::makeMove(const Move& move)
 
 void GameState::rollbackMove(const MoveRollbackData& rollbackData)
 {
-	assert(seenPositions[board] >= 1);
+	assert(seenPositions[st.board] >= 1);
 	if (--seenPositions[st.board] == 0) seenPositions.erase(st.board);
 	this->st = rollbackData;
 }
