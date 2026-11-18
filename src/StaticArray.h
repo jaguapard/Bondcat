@@ -15,6 +15,9 @@ public:
 		arr[count++] = value;
 	}
 
+	T& operator[](size_t i) { return arr[i]; }
+	const T& operator[](size_t i) const { return arr[i]; }
+
 	auto begin() { return arr.begin(); }
 	auto end() { return arr.begin() + count; }
 
