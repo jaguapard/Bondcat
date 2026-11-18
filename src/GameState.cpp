@@ -556,13 +556,15 @@ bool GameState::isTeamsKingChecked(Team team)
 
 MoveResult GameState::tryMakeMove(const Move& move)
 {
+	DerivedData dd = deriveStateData();
 	MoveResult ret;
 	ret.applied = false;
-	ret.checkStatus = isLegalMove(move);
-	if (ret.checkStatus == MoveCheckStatus::LEGAL)
+	ret.checkStatus = MoveCheckStatus::ILLEGAL_REASON_NOT_SPECIFIED;
+	if (std::find(dd.legalMoveList.begin(), dd.legalMoveList.end(), move) != dd.legalMoveList.end())
 	{
-		ret.rollbackData = this->makeMove(move);
 		ret.applied = true;
+		ret.rollbackData = this->makeMove(move);
+		ret.checkStatus = MoveCheckStatus::LEGAL;
 	}
 	return ret;
 }
