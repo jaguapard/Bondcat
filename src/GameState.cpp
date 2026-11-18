@@ -264,19 +264,19 @@ Piece GameState::getPieceAt(Square s) const
 
 void GameState::updateStatus()
 {
-	Team nextTeamToMove = st.whitesTurn ? Team::WHITE : Team::BLACK;
-	bool kingChecked = isTeamsKingChecked(nextTeamToMove);
+	//Team nextTeamToMove = st.whitesTurn ? Team::WHITE : Team::BLACK;
+	DerivedData dd = deriveStateData();
+	bool kingChecked = st.whitesTurn ? dd.whiteChecked : dd.blackChecked;
 	
-	MoveList allLegalMoves;
-	getAllLegalMoves(allLegalMoves);
 	if (kingChecked)
 	{
 		bool checkmate = true;
 		std::optional<MoveRollbackData> rollback;
-		for (auto& move : allLegalMoves)
+		for (auto& move : dd.legalMoveList)
 		{
 			rollback = this->makeMove(move);
-			if (!isTeamsKingChecked(nextTeamToMove))
+			DerivedData dd2 = deriveStateData();
+			if (!(st.whitesTurn ? dd2.whiteChecked : dd2.blackChecked))
 			{
 				checkmate = false;
 				break;
@@ -291,7 +291,7 @@ void GameState::updateStatus()
 			return;
 		}
 	}
-	else if (allLegalMoves.size() == 0) { this->gameStatus = GameStatus::DRAW_STALEMATE; return; };
+	else if (dd.legalMoveList.size() == 0) { this->gameStatus = GameStatus::DRAW_STALEMATE; return; };
 	this->gameStatus = GameStatus::ONGOING;
 
 	if (st.halfmoves >= 100) { this->gameStatus = GameStatus::DRAW_FIFTY_MOVE_RULE; return; };
