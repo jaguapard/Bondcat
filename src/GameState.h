@@ -105,7 +105,7 @@ public:
 private:
 	SearchReturn findBestMoveInner(int remainingDepth, float alpha, float beta, const SearchParams& params);
 public:
-	std::vector<StateStackEntry> stateStack = std::vector<StateStackEntry>(1);
+	StaticArray<StateStackEntry, 10240> stateStack;
 
 	__declspec(property(get = getTopStateStackEntry)) StateStackEntry& st;
 

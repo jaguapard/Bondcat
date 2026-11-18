@@ -31,7 +31,8 @@ constexpr std::array<float, 64> bishopMult = {
 };
 GameState::GameState()
 {
-	this->stateStack.reserve(1024);
+	this->stateStack.push_back({});
+	//this->stateStack.reserve(1024);
 }
 SearchReturn GameState::findBestMove(SearchParams params)
 {
