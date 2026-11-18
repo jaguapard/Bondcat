@@ -165,10 +165,9 @@ SearchReturn GameState::findBestMoveInner(int remainingDepth, float alpha, float
 	}
 	else if (remainingDepth > 0) //else if there's depth remaining, search recursively
 	{
-		MoveList moves;
-		getAllLegalMoves(moves);
+		DerivedData dd = deriveStateData();
 		ret.evaluation = -INFINITY;
-		for (auto& move : moves)
+		for (auto& move : dd.legalMoveList)
 		{
 			//if (move.from == Square("f3") && move.to == Square("g2")) __debugbreak();
 			auto rollback = this->makeMove(move);
@@ -203,17 +202,17 @@ SearchReturn GameState::findBestMoveInner(int remainingDepth, float alpha, float
 				std::popcount(st.board.black & st.board.knights) * 3 +
 				std::popcount(st.board.black & st.board.pawns) * 1;
 
-			LegalMoves legalMoves = getAllLegalMoves();
-			float mobilityBonus = legalMoves.size() * 0.02;
+			DerivedData dd = deriveStateData();
+			float mobilityBonus = dd.legalMoveList.size() * 0.02;
 
-			if (whitesTurn) whiteScore += mobilityBonus;
+			if (st.whitesTurn) whiteScore += mobilityBonus;
 			else blackScore += mobilityBonus;
 			/*
 			if (copy.whiteCanKingsideCastle) whiteScore += 0.5;
 			else if (copy.whiteCanQueensideCastle) whiteScore += 0.33;
 			if (copy.blackCanKingsideCastle) blackScore += 0.5;
 			else if (copy.blackCanQueensideCastle) blackScore += 0.33;*/
-
+			/*
 			for (int i = 0; i < 64; ++i)
 			{
 				if (board[i].type == PieceType::EMPTY) continue;
@@ -228,7 +227,7 @@ SearchReturn GameState::findBestMoveInner(int remainingDepth, float alpha, float
 				case PieceType::QUEEN: score += 9; break;
 				default: break;
 				}
-			}
+			}*/
 			return whiteScore - blackScore;
 		}();
 	}
