@@ -202,6 +202,7 @@ struct Sentinel
 };
 int main(int argc, char** argv)
 {
+	Globals::init();
 	Sentinel tablebaseNannyDontRemoveMe;
 	bool tablebaseLoaded = [&]()
 	{

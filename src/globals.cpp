@@ -1,5 +1,6 @@
 #include "globals.h"
 
+/*
 const std::vector<Move>& Globals::getPieceMoveCandidates(Square from, PieceType type)
 {
     typedef std::vector<Move> movelist_t;
@@ -46,4 +47,40 @@ const std::vector<Move>& Globals::getPieceMoveCandidates(Square from, PieceType 
         }();
     
 	return lut[from.toIndex() * N + int(type)];
+}*/
+
+void Globals::init()
+{
+	for (auto& it : Globals::kingMoves) it = 0;
+	for (auto& it : Globals::queenMoves) it = 0;
+	for (auto& it : Globals::rookMoves) it = 0;
+	for (auto& it : Globals::bishopMoves) it = 0;
+	for (auto& it : Globals::knightMoves) it = 0;
+	for (auto& it : Globals::blackPawnMoves) it = 0;
+	for (auto& it : Globals::whitePawnMoves) it = 0;
+
+	for (Square from : Square::all_inBounds())
+	{
+		for (Square to : Square::all_inBounds())
+		{
+			int dx = to.x - from.x;
+			int dy = to.y - from.y;
+			int i = from.toIndex();
+			uint64_t dstBit = 1ull << (to.toIndex());
+
+			if (from == to) continue;
+			if ((std::abs(dx) == 1 && std::abs(dy) == 2) || (std::abs(dx) == 2 && std::abs(dy) == 1)) knightMoves[i] |= dstBit;
+			if (abs(dx) == abs(dy)) { queenMoves[i] |= dstBit; bishopMoves[i] |= dstBit; }
+			if (dx == 0 || dy == 0) { queenMoves[i] |= dstBit; rookMoves[i] |= dstBit; }
+			if (abs(dx) <= 1 && abs(dy) <= 1) kingMoves[i] |= dstBit;
+
+			if (dy == 1 && dx == 0) blackPawnMoves[i] |= dstBit;
+			if ((dy == 1 || dy == 2) && dx == 0 && from.y == 1) blackPawnMoves[i] |= dstBit;
+			if (dy == -1 && dx == 0) whitePawnMoves[i] |= dstBit;
+			if ((dy == -1 || dy == -2) && dx == 0 && from.y == 6) whitePawnMoves[i] |= dstBit;
+
+			if (dy == 1 && abs(dx) == 1) blackPawnCaptures[i] |= dstBit;
+			if (dy == -1 && abs(dx) == 1) whitePawnCaptures[i] |= dstBit;
+		}
+	}
 }
