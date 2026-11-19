@@ -264,7 +264,8 @@ uint64_t GameState::getSquaresAttackedByRookAt(uint64_t ind, uint64_t rookAllies
 	if (occludersMask)
 	{
 		firstOccluderInd = _tzcnt_u64(occludersMask); //right path: scan from top-left to right to bottom
-		paths |= ray & ((1ull << (firstOccluderInd + 1)) - 1);
+		uint64_t shiftMsk = 1ull << firstOccluderInd; //shift by variable 64 leaves input untouched!
+		paths |= ray & ((shiftMsk << 1) - 1);
 	}
 	else paths |= ray;
 
@@ -282,7 +283,8 @@ uint64_t GameState::getSquaresAttackedByRookAt(uint64_t ind, uint64_t rookAllies
 	if (occludersMask)
 	{
 		firstOccluderInd = _tzcnt_u64(occludersMask);
-		paths |= ray & ((1ull << (firstOccluderInd + 1)) - 1);
+		uint64_t shiftMsk = 1ull << firstOccluderInd; //shift by variable 64 leaves input untouched!
+		paths |= ray & ((shiftMsk << 1) - 1);
 	}
 	else paths |= ray;
 
@@ -318,7 +320,8 @@ uint64_t GameState::getSquaresAttackedByBishopAt(uint64_t ind, uint64_t bishopAl
 	if (occludersMask)
 	{
 		firstOccluderInd = _tzcnt_u64(occludersMask);
-		paths |= ray & ((1ull << (firstOccluderInd+1)) - 1);
+		uint64_t shiftMsk = 1ull << firstOccluderInd;
+		paths |= ray & ((shiftMsk << 1) - 1);
 	}
 	else paths |= ray;
 
@@ -327,7 +330,8 @@ uint64_t GameState::getSquaresAttackedByBishopAt(uint64_t ind, uint64_t bishopAl
 	if (occludersMask)
 	{
 		firstOccluderInd = _tzcnt_u64(occludersMask);
-		paths |= ray & ((1ull << (firstOccluderInd + 1)) - 1);
+		uint64_t shiftMsk = 1ull << firstOccluderInd;
+		paths |= ray & ((shiftMsk << 1) - 1);
 	}
 	else paths |= ray;
 
