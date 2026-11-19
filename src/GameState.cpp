@@ -348,8 +348,8 @@ bool GameState::isSquareAttacked(uint64_t sqInd, bool forWhite)
 	if (getSquaresAttackedByBishopAt(sqInd, allies) & enemies & (st.board.bishops | st.board.queens)) return true;
 	if (getSquaresAttackedByRookAt(sqInd, allies) & enemies & (st.board.rooks | st.board.queens)) return true;
 
-	if (forWhite) return Globals::blackPawnCaptures[sqInd] & enemies & st.board.pawns;
-	else return Globals::whitePawnCaptures[sqInd] & enemies & st.board.pawns;
+	if (forWhite) return Globals::whitePawnCaptures[sqInd] & enemies & st.board.pawns;
+	else return Globals::blackPawnCaptures[sqInd] & enemies & st.board.pawns;
 	return false;
 }
 
