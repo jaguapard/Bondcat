@@ -9,4 +9,5 @@ struct Board
 	//static Board makeEmptyBoard();
 
 	bool operator<(const Board& other) const;
+	bool operator==(const Board& other) const;
 };

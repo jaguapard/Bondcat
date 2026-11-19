@@ -75,3 +75,8 @@ bool Board::operator<(const Board& other) const
 	static_assert(sizeof(*this) == 8 * 8); //8 64-bit uints with no padding
 	return memcmp(this, &other, sizeof(*this)) < 0;
 }
+bool Board::operator==(const Board& other) const
+{
+	static_assert(sizeof(*this) == 8 * 8); //8 64-bit uints with no padding
+	return memcmp(this, &other, sizeof(*this)) == 0;
+}

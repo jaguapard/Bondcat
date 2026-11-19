@@ -66,6 +66,11 @@ struct StateStackEntry
 	uint32_t halfmoves, fullmoves;
 	bool whitesTurn;
 	Board board;
+
+	bool operator==(const StateStackEntry& rhs) const
+	{
+		return whitesTurn == rhs.whitesTurn && castlingRights == rhs.castlingRights && board == rhs.board;
+	}
 };
 
 struct MoveResult
@@ -122,7 +127,6 @@ public:
 
 	StateStackEntry& getTopStateStackEntry();
 	std::optional<GameStatus> gameStatus;
-	std::map<Board, int> seenPositions;
 
 	Piece getPieceAt(Square s);
 

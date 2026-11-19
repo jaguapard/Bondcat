@@ -32,6 +32,11 @@ struct CastlingRights
 	{
 		return !whiteKingside && !whiteQueenside && !blackKingside && !blackQueenside;
 	}
+
+	bool operator==(const CastlingRights& rhs) const
+	{
+		return whiteKingside == rhs.whiteKingside && blackKingside == rhs.blackKingside && whiteQueenside == rhs.whiteQueenside && blackQueenside == rhs.blackQueenside;
+	}
 };
 
 struct FEN_Codec

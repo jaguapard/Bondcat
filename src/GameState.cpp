@@ -462,9 +462,20 @@ void GameState::updateStatus()
 		}();
 	if (insufficiet) this->status = GameStatus::DRAW_INSUFFICIENT_MATERIAL;
 	*/
-	if (this->seenPositions[st.board] >= 3) { this->gameStatus = GameStatus::DRAW_THREEFOLD_REPETITION; return; }
-
-	//if (!this->gameStatus) __debugbreak()
+	int repetitions = 0;
+	if (st.halfmoves > 0)
+	{
+		for (int i = this->stateStack.size() - 1; i >= 0; i -= 2)
+		{
+			//if (this->stateStack[i].halfmoves == 0) break;
+			if (this->stateStack[i] == st) ++repetitions;
+			if (repetitions >= 3)
+			{
+				this->gameStatus = GameStatus::DRAW_THREEFOLD_REPETITION;
+				break;
+			}
+		}
+	}
 }
 
 void GameState::reset()
@@ -774,7 +785,7 @@ void GameState::makeMove(const Move& move, bool rememberPosition)
 	//Thus, gameStatus is made optional that will explode on unwrapping, forcing callers to update game status
 	this->gameStatus = std::nullopt;
 
-	if (rememberPosition) this->seenPositions[st.board]++;
+	//if (rememberPosition) this->seenPositions[st.board]++;
 }
 
 void GameState::rollbackMove(bool forgetPosition)
@@ -782,7 +793,7 @@ void GameState::rollbackMove(bool forgetPosition)
 	if (forgetPosition)
 	{
 		assert(seenPositions[st.board] >= 1);
-		if (--seenPositions[st.board] == 0) seenPositions.erase(st.board);
+		//if (--seenPositions[st.board] == 0) seenPositions.erase(st.board);
 	}
 	assert(this->stateStack.size() > 0);
 	this->stateStack.pop_back();
