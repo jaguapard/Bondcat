@@ -139,6 +139,6 @@ public:
 	void reset();
 
 	MoveResult tryMakeMove(const Move& move); //Applies move if it is legal 
-	void makeMove(const Move& move); //Applies move without validation
-	void rollbackMove(); //rolls back move. Only supports rolling back the last move applied.
+	void makeMove(const Move& move, bool rememberPosition = true); //Applies move without validation. If rememberPosition is false, the resulting position will not be remembered for the purposes of 3-fold repetition rule
+	void rollbackMove(bool forgetPosition = true); //rolls back move. Only supports rolling back the last move applied. if forgetPosiition is false, will not erase the position from 3-fold repetition table
 };

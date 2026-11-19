@@ -396,7 +396,7 @@ void GameState::updateStatus()
 		bool white = st.whitesTurn;
 		for (auto& move : dd.legalMoveList)
 		{
-			this->makeMove(move);
+			this->makeMove(move, false);
 			rollback = true;
 			
 			uint64_t kingIndex = _tzcnt_u64(st.board.kings & (white ? st.board.white : st.board.black));
@@ -406,11 +406,11 @@ void GameState::updateStatus()
 				checkmate = false;
 				break;
 			}
-			this->rollbackMove();
+			this->rollbackMove(false);
 			rollback = false;
 		}
 
-		if (rollback) this->rollbackMove();
+		if (rollback) this->rollbackMove(false);
 		if (checkmate)
 		{
 			this->gameStatus = st.whitesTurn ? GameStatus::BLACK_WON_BY_CHECKMATE : GameStatus::WHITE_WON_BY_CHECKMATE;
@@ -696,7 +696,7 @@ MoveResult GameState::tryMakeMove(const Move& move)
 	return ret;
 }
 
-void GameState::makeMove(const Move& move)
+void GameState::makeMove(const Move& move, bool rememberPosition)
 {
 	assert(std::popcount(st.board.kings) == 2);
 	StateStackEntry cp = st;
@@ -769,14 +769,18 @@ void GameState::makeMove(const Move& move)
 	//sadly, we can't put the check of game status here, since it creates infinite recursion of getting legal moves. 
 	//Thus, gameStatus is made optional that will explode on unwrapping, forcing callers to update game status
 	this->gameStatus = std::nullopt;
-	this->seenPositions[st.board]++;
+
+	if (rememberPosition) this->seenPositions[st.board]++;
 }
 
-void GameState::rollbackMove()
+void GameState::rollbackMove(bool forgetPosition)
 {
-	assert(seenPositions[st.board] >= 1);
+	if (forgetPosition)
+	{
+		assert(seenPositions[st.board] >= 1);
+		if (--seenPositions[st.board] == 0) seenPositions.erase(st.board);
+	}
 	assert(this->stateStack.size() > 0);
-	if (--seenPositions[st.board] == 0) seenPositions.erase(st.board);
 	this->stateStack.pop_back();
 }
 
@@ -962,14 +966,14 @@ DerivedData GameState::deriveStateData(DeriveOptions opts)
 		bool savedWhitesTurn = st.whitesTurn;
 		for (int i = 0; i < ret.legalMoveList.size(); ++i)
 		{
-			this->makeMove(ret.legalMoveList[i]);
+			this->makeMove(ret.legalMoveList[i], false);
 			uint64_t kingIndex = _tzcnt_u64(st.board.kings & (savedWhitesTurn ? st.board.white : st.board.black));
 			if (this->isSquareAttacked(kingIndex, savedWhitesTurn))
 			{
 				ret.legalMoveList[i--] = ret.legalMoveList.back();
 				ret.legalMoveList.pop_back();
 			}
-			this->rollbackMove();
+			this->rollbackMove(false);
 		}
 	}
 
