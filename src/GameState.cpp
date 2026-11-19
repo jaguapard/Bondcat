@@ -393,12 +393,15 @@ void GameState::updateStatus()
 	{
 		bool checkmate = true;
 		bool rollback = false;
+		bool white = st.whitesTurn;
 		for (auto& move : dd.legalMoveList)
 		{
 			this->makeMove(move);
 			rollback = true;
-			DerivedData dd2 = deriveStateData();
-			if (!(st.whitesTurn ? dd2.whiteChecked : dd2.blackChecked))
+			
+			uint64_t kingIndex = _tzcnt_u64(st.board.kings & (white ? st.board.white : st.board.black));
+			bool kingChecked2 = isSquareAttacked(kingIndex, white);
+			if (!kingChecked2)
 			{
 				checkmate = false;
 				break;
