@@ -147,6 +147,7 @@ void UCI()
 			else if (acc.substr(0, 3) == "fen") gameState = GameState::fromFEN(acc.substr(4));
 
 			std::string moveStr;
+			int moveCounter = 0;
 			while (ss >> moveStr)
 			{
 				std::string src = moveStr.substr(0, 2);
@@ -173,8 +174,9 @@ void UCI()
 				}
 
 				MoveResult result = gameState.tryMakeMove(move);
-				if (!result.applied) throw BondcatException("UCI illegal move: " + StringifyEnum(result.checkStatus));
+				if (!result.applied) throw BondcatException((std::stringstream() << "UCI illegal move: " << moveStr << " at position " << moveCounter << ": " << StringifyEnum(result.checkStatus)).str());
 				gameState.updateStatus();
+				moveCounter++;
 			}
 		}
 
