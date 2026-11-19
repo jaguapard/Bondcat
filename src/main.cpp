@@ -218,7 +218,8 @@ int main(int argc, char** argv)
 	
 	try
 	{
-		std::cout << "Select mode: gui or uci: ";
+		bool engineEnabled = true;
+		std::cout << "Select mode: gui or uci or fen (string) to import a position in GUI mode: ";
 		std::string line;
 		std::getline(std::cin, line);
 
@@ -227,12 +228,6 @@ int main(int argc, char** argv)
 			UCI();
 			return 0;
 		}
-
-		SDL_Window* wnd;
-		SDL_Renderer* rend;
-		int w = 1920, h = 1080;
-		SDL_CreateWindowAndRenderer("Chess engine", w, h, 0, &wnd, &rend);
-		SDL_SetRenderVSync(rend, 1);
 
 		auto state = GameState::newGame();
 		//state = GameState::fromFEN("rnb1kbnr/pppp1ppp/4p3/8/3Pq3/4B1P1/PPP2P1P/RN1QKBNR b KQkq - 1 4"); //queen blundering
@@ -253,6 +248,19 @@ int main(int argc, char** argv)
 		//state = GameState::fromFEN("r6k/3n4/3n4/8/bb1R2pp/8/3N4/K2B4 w - - 0 1"); //Rook move test
 		//state = GameState::fromFEN("rb5k/3n4/3n3Q/8/bb1B1Bpp/8/KR1N4/3B4 w - - 0 1"); //bishop move test
 		//state = GameState::fromFEN("7k/8/8/7R/8/8/8/K7 w - - 0 1");
+		if (line.substr(0,3) == "fen")
+		{
+			state = GameState::fromFEN(line.substr(4));
+			engineEnabled = false;
+		}
+
+		SDL_Window* wnd;
+		SDL_Renderer* rend;
+		int w = 1920, h = 1080;
+		SDL_CreateWindowAndRenderer("Chess engine", w, h, 0, &wnd, &rend);
+		SDL_SetRenderVSync(rend, 1);
+
+		
 
 		float minDim = std::min(w, h);
 		BoardView boardView({ 0,0,minDim,minDim }, 8, 8);
@@ -293,7 +301,6 @@ int main(int argc, char** argv)
 		boardDrawCtx.textures = &pieceTextures;
 		SearchParams params;
 		params.maxDepth = 6;
-		bool engineEnabled = true;
 		while (true)
 		{
 			SDL_Event event;
