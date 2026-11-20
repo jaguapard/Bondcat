@@ -77,6 +77,7 @@ struct MoveResult
 {
 	bool applied;
 	MoveCheckStatus checkStatus;
+	uint32_t plyIndex;
 };
 
 struct CastlingSquares
@@ -143,6 +144,9 @@ public:
 	void reset();
 
 	MoveResult tryMakeMove(const Move& move); //Applies move if it is legal 
-	void makeMove(const Move& move, bool rememberPosition = true); //Applies move without validation. If rememberPosition is false, the resulting position will not be remembered for the purposes of 3-fold repetition rule
+	//Applies the move without validation. If rememberPosition is false, the resulting position will not be remembered for the purposes of 3-fold repetition rule.
+	//Returns the ply index of the move made (1 on first white's move in the start of the game, increments by one for each ply)
+	//This index is the same as state stack index of the position after the move is applied
+	uint32_t makeMove(const Move& move, bool rememberPosition = true); 
 	void rollbackMove(bool forgetPosition = true); //rolls back move. Only supports rolling back the last move applied. if forgetPosiition is false, will not erase the position from 3-fold repetition table
 };

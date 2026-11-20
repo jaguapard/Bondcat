@@ -438,20 +438,19 @@ MoveResult GameState::tryMakeMove(const Move& move)
 	if (std::find(dd.legalMoveList.begin(), dd.legalMoveList.end(), move) != dd.legalMoveList.end())
 	{
 		ret.applied = true;
-		this->makeMove(move);
+		ret.plyIndex = this->makeMove(move);
 		ret.checkStatus = MoveCheckStatus::LEGAL;
 	}
 	return ret;
 }
 
-void GameState::makeMove(const Move& move, bool rememberPosition)
+uint32_t GameState::makeMove(const Move& move, bool rememberPosition)
 {
 	assert(std::popcount(st.board.kings) == 2);
-	StateStackEntry cp = st;
-	this->stateStack.push_back(cp);
+	this->stateStack.push_back(st);
 	this->st.halfmoves++;
-	this->st.whitesTurn ^= 1;
-	if (this->st.whitesTurn) this->st.fullmoves++;
+	this->st.whitesTurn = !this->st.whitesTurn;
+	this->st.fullmoves += this->st.whitesTurn;
 
 	using enum MoveType;
 	bool eraseEnpassant = true;
@@ -517,8 +516,9 @@ void GameState::makeMove(const Move& move, bool rememberPosition)
 	//sadly, we can't put the check of game status here, since it creates infinite recursion of getting legal moves. 
 	//Thus, gameStatus is made optional that will explode on unwrapping, forcing callers to update game status
 	this->gameStatus = std::nullopt;
-
+	
 	//if (rememberPosition) this->seenPositions[st.board]++;
+	return this->stateStack.size() - 1;
 }
 
 void GameState::rollbackMove(bool forgetPosition)
