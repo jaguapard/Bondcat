@@ -2,14 +2,7 @@
 #include "GameState.h"
 #include <SDL3/SDL.h>
 #include "Square.h"
-
-struct PieceTexture
-{
-	Team team;
-	PieceType type;
-	SDL_Texture* tex;
-	float w, h;
-};
+#include "globals.h"
 
 struct BoardDrawCtx
 {
@@ -21,6 +14,7 @@ struct BoardDrawCtx
 class BoardView
 {
 public:
+	BoardView() = default;
 	BoardView(SDL_FRect boardRenderRect, int divisionsW, int divisionsH);
 	Square squareAt(SDL_Point p);
 	void draw(SDL_Renderer* rend, BoardDrawCtx& ctx);

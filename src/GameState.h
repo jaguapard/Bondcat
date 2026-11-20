@@ -125,7 +125,9 @@ public:
 	StaticArray<StateStackEntry, 10240> stateStack;
 
 	__declspec(property(get = getTopStateStackEntry)) StateStackEntry& st;
+	__declspec(property(get = getCurrentTurnTeam)) Team currTurnTeam;
 
+	Team getCurrentTurnTeam();
 	StateStackEntry& getTopStateStackEntry();
 	std::optional<GameStatus> gameStatus;
 
@@ -147,6 +149,9 @@ public:
 	//Applies the move without validation. If rememberPosition is false, the resulting position will not be remembered for the purposes of 3-fold repetition rule.
 	//Returns the ply index of the move made (1 on first white's move in the start of the game, increments by one for each ply)
 	//This index is the same as state stack index of the position after the move is applied
-	uint32_t makeMove(const Move& move, bool rememberPosition = true); 
+	uint32_t makeMove(const Move& move, bool rememberPosition = true);
+
+	std::string moveToAlgebraicNotation(Move move);
+
 	void rollbackMove(bool forgetPosition = true); //rolls back move. Only supports rolling back the last move applied. if forgetPosiition is false, will not erase the position from 3-fold repetition table
 };

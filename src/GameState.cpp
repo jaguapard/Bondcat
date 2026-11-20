@@ -6,6 +6,8 @@
 #include <tbprobe.h>
 #include "globals.h"
 #include "BondcatException.h"
+#include <unordered_set>
+#include <set>
 
 #pragma warning(push)
 #pragma warning(disable : 6262) //"This function uses X bytes of stack, consider moving to heap"
@@ -342,6 +344,12 @@ GameState GameState::newGame()
 	return fromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 }
 
+Team GameState::getCurrentTurnTeam()
+{
+	if (st.whitesTurn) return Team::WHITE;
+	return Team::BLACK;
+}
+
 StateStackEntry& GameState::getTopStateStackEntry()
 {
 	return stateStack.back();
@@ -519,6 +527,91 @@ uint32_t GameState::makeMove(const Move& move, bool rememberPosition)
 	
 	//if (rememberPosition) this->seenPositions[st.board]++;
 	return this->stateStack.size() - 1;
+}
+
+std::string GameState::moveToAlgebraicNotation(Move move)
+{
+	using enum MoveType;
+	using enum PieceType;
+	using enum GameStatus;
+	if (move.type == WHITE_KINGSIDE_CASTLE || move.type == BLACK_KINGSIDE_CASTLE) return "O-O";
+	if (move.type == WHITE_QUEENSIDE_CASTLE || move.type == BLACK_QUEENSIDE_CASTLE) return "O-O-O";
+
+	std::string s;
+	Piece movingPiece = getPieceAt(move.from);
+	switch (movingPiece.type)
+	{
+	case PAWN: break;
+	case KNIGHT: s = "N"; break;
+	case BISHOP: s = "B"; break;
+	case ROOK: s = "R"; break;
+	case QUEEN: s = "Q"; break;
+	case KING: s = "K"; break;
+	default: s = "(empty)"; break;
+	}
+
+	DerivedData dd = deriveStateData();
+	std::map<char, int> fittingRankCounts, fittingFileCounts;
+	std::set<char> fittingRanks, fittingFiles;
+	std::vector<Square> fittingSquares;
+
+	if (movingPiece.type != PAWN)
+	{
+		for (auto& sq : Square::all_inBounds())
+		{
+			Move m = { sq,move.to,MOVE_TO_SQUARE };
+			if (getPieceAt(sq).teamedType == movingPiece.teamedType && std::find(dd.legalMoveList.begin(), dd.legalMoveList.end(), m) != dd.legalMoveList.end())
+			{
+				std::string a = sq.toAlgebraic();
+				fittingFileCounts[a[0]]++;
+				fittingRankCounts[a[1]]++;
+				fittingSquares.push_back(sq);
+			}
+		}
+
+		if (fittingSquares.size() > 1)
+		{
+			std::string a = move.from.toAlgebraic();
+			for (auto& it : fittingFileCounts) if (it.first == a[0] && it.second == 1) { s.push_back(it.first); goto disambiguated; };
+			for (auto& it : fittingRankCounts) if (it.first == a[1] && it.second == 1) { s.push_back(it.first); goto disambiguated; };
+			s += a;
+		}
+	}
+
+disambiguated:
+	Piece dstPiece = getPieceAt(move.to);
+	bool capture = dstPiece.type != EMPTY;
+	if (capture)
+	{
+		if (movingPiece.type == PAWN) s.push_back(move.from.toAlgebraic()[0]); //file of the capturing pawn
+		s.push_back('x');
+	}
+
+	s += move.to.toAlgebraic();
+	auto promotion = move.getPromotionTarget();
+	if (promotion)
+	{
+		switch (promotion.value())
+		{
+		case QUEEN: s += "=Q"; break;
+		case ROOK: s += "=R"; break;
+		case BISHOP: s += "=B"; break;
+		case KNIGHT: s += "=N"; break;
+		default: break;
+		}
+	}
+
+	this->makeMove(move, false);
+	this->updateStatus();
+	dd = deriveStateData();
+	bool check = st.whitesTurn ? dd.whiteChecked : dd.blackChecked;
+	bool checkmate = this->gameStatus == BLACK_WON_BY_CHECKMATE || this->gameStatus == WHITE_WON_BY_CHECKMATE;
+	this->rollbackMove(false);
+	this->gameStatus = std::nullopt;
+
+	if (checkmate) s.push_back('#');
+	else if (check) s.push_back('+');
+	return s;
 }
 
 void GameState::rollbackMove(bool forgetPosition)

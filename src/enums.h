@@ -81,6 +81,8 @@ enum class GameStatus
 	DRAW_INSUFFICIENT_MATERIAL,
 };
 
+enum class PieceType;
+
 std::string StringifyEnum(MoveCheckStatus status);
 std::string StringifyEnum(GameStatus status);
 std::string StringifyEnum(PieceType type);

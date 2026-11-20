@@ -24,8 +24,7 @@
 
 #include <string_view>
 #include "BondcatException.h" 
-
-
+#include "GUI_Game.h"
 
 void UCI()
 {
@@ -144,7 +143,14 @@ int main(int argc, char** argv)
 			return 0;
 		}
 
-		auto state = GameState::newGame();
+		SDL_Window* wnd;
+		SDL_Renderer* rend;
+		int w = 1920, h = 1080;
+		SDL_CreateWindowAndRenderer("Bondcat the Chess Engine", w, h, 0, &wnd, &rend);
+		SDL_SetRenderVSync(rend, 1);
+		Globals::initGUI(rend);
+
+		std::optional<GUI_Game> guiGameInProgress = GUI_Game(rend, w, h);
 		//state = GameState::fromFEN("rnb1kbnr/pppp1ppp/4p3/8/3Pq3/4B1P1/PPP2P1P/RN1QKBNR b KQkq - 1 4"); //queen blundering
 		//state = GameState::fromFEN("rnbqkbnr/pppp3p/4p3/5pp1/5P2/5NPB/PPPPP2P/RNBQK2R w KQkq - 0 5"); //castling test
 		//state = GameState::fromFEN("4k3/2p3P1/p2pb3/5p2/1P2p3/B1N3P1/P2P4/R3K2R w KQkq - 0 27");
@@ -165,154 +171,27 @@ int main(int argc, char** argv)
 		//state = GameState::fromFEN("7k/8/8/7R/8/8/8/K7 w - - 0 1");
 		if (line.substr(0,3) == "fen")
 		{
-			state = GameState::fromFEN(line.substr(4));
-			engineEnabled = false;
+			guiGameInProgress->loadFEN(line.substr(4));
+			guiGameInProgress->engineTeam = Team::NONE;
 		}
-
-		SDL_Window* wnd;
-		SDL_Renderer* rend;
-		int w = 1920, h = 1080;
-		SDL_CreateWindowAndRenderer("Chess engine", w, h, 0, &wnd, &rend);
-		SDL_SetRenderVSync(rend, 1);
 
 		
-
-		float minDim = std::min(w, h);
-		BoardView boardView({ 0,0,minDim,minDim }, 8, 8);
-		std::vector<PieceTexture> pieceTextures;
-		{
-			std::pair<PieceType, std::string> paths[] = {
-				{ PieceType::PAWN, "pawn" },
-				{ PieceType::ROOK, "rook" },
-				{ PieceType::KING, "king" },
-				{ PieceType::QUEEN, "queen" },
-				{ PieceType::BISHOP, "bishop" },
-				{ PieceType::KNIGHT, "knight" },
-			};
-			for (auto& it : paths)
-			{
-				std::string pth_w = "textures/white_" + it.second + ".png";
-				std::string pth_b = "textures/black_" + it.second + ".png";
-				SDL_Surface* s1 = IMG_Load(pth_w.c_str());
-				SDL_Surface* s2 = IMG_Load(pth_b.c_str());
-
-				PieceTexture t;
-				t.type = it.first;
-				t.team = Team::WHITE;
-				t.tex = SDL_CreateTextureFromSurface(rend, s1);
-				t.w = s1->w;
-				t.h = s1->h;
-				pieceTextures.emplace_back(t);
-				t.team = Team::BLACK;
-				t.tex = SDL_CreateTextureFromSurface(rend, s2);
-				t.w = s2->w;
-				t.h = s2->h;
-				pieceTextures.emplace_back(t);
-			}
-		}
-
-		BoardDrawCtx boardDrawCtx;
-		boardDrawCtx.gameState = &state;
-		boardDrawCtx.textures = &pieceTextures;
-		SearchParams params;
-		params.maxDepth = 6;
 		while (true)
 		{
 			SDL_Event event;
 			while (SDL_PollEvent(&event))
 			{
-				if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == 1 && (!engineEnabled || state.st.whitesTurn))
-				{
-					SDL_Point p;
-					p.x = event.motion.x;
-					p.y = event.motion.y;
-					auto clickedAtSquare = boardView.squareAt(p);
-					if (!boardDrawCtx.activeSquare)
-					{
-						if (clickedAtSquare.inBounds() && state.getPieceAt(clickedAtSquare).type != PieceType::EMPTY)
-						{
-							boardDrawCtx.activeSquare = clickedAtSquare;
-							boardDrawCtx.circlesAt.clear();
-
-							DerivedData dd = state.deriveStateData();
-							for (auto& move : dd.legalMoveList)
-							{
-								if (move.from != *boardDrawCtx.activeSquare) continue;
-								boardDrawCtx.circlesAt.push_back({ move.to.x, move.to.y });
-							}
-						}
-					}
-					else
-					{
-						Square from(boardDrawCtx.activeSquare->x, boardDrawCtx.activeSquare->y);
-						Square to(clickedAtSquare.x, clickedAtSquare.y);
-						Move m(from, to, MoveType::MOVE_TO_SQUARE);
-
-						Piece movingPiece = state.getPieceAt(m.from);
-						Piece targetPiece = state.getPieceAt(m.to);
-						bool onLastRank = m.to.y == (state.st.whitesTurn ? 0 : 7);
-						bool isPawn = movingPiece.type == PieceType::PAWN;
-						if (isPawn && onLastRank) {
-							m.type = MoveType::MOVE_AND_PROMOTE_TO_QUEEN;
-						}
-
-						MoveResult result;
-						result.applied = false;
-						if (((movingPiece.type == PieceType::KING && targetPiece.type == PieceType::ROOK) || (movingPiece.type == PieceType::ROOK && targetPiece.type == PieceType::KING)) && movingPiece.team == targetPiece.team)
-						{
-							Square rookSq = movingPiece.type == PieceType::ROOK ? m.from : m.to;
-							Square kingSq = movingPiece.type == PieceType::ROOK ? m.to : m.from;
-							for (auto ct : { MoveType::WHITE_KINGSIDE_CASTLE, MoveType::WHITE_QUEENSIDE_CASTLE, MoveType::BLACK_KINGSIDE_CASTLE, MoveType::BLACK_QUEENSIDE_CASTLE })
-							{
-								CastlingSquares sqrs(ct);
-								if (kingSq == sqrs.kingStart && rookSq == sqrs.rookStart)
-								{
-									Move castle;
-									castle.type = ct;
-									result = state.tryMakeMove(castle);
-									if (result.applied) break;
-								}
-							}
-						}
-						
-						if (!result.applied) result = state.tryMakeMove(m); //castlings failed, so try a normal move/promotion
-						if (!result.applied)
-						{
-							std::cout << StringifyEnum(result.checkStatus) << "\n";
-						}
-						else std::cout << state.toFEN() << "\n";
-
-						boardDrawCtx.activeSquare = std::nullopt;
-						boardDrawCtx.circlesAt.clear();
-						state.updateStatus();
-					}
-				}
+				if (guiGameInProgress) guiGameInProgress->handleEvent(event);
 			}
 
 			SDL_SetRenderDrawColor(rend, 0, 0, 0, 255);
 			SDL_RenderClear(rend);
-
-			boardView.draw(rend, boardDrawCtx);
-			SDL_RenderPresent(rend);
-
-			if (!state.st.whitesTurn && engineEnabled)
+			if (guiGameInProgress)
 			{
-				std::cout << "Engine thinking...";
-				SearchReturn search = state.findBestMove(params);
-				std::cout << " done in " << search.searchSeconds << " sec.\n";
-
-				std::cout << search.toUCI() << "\n";
-				if (search.bestMove.from.inBounds()) std::cout << "Engine chose: " << StringifyEnum(state.getPieceAt(search.bestMove.from).type) << " " << search.bestMove.toUCI() << "\n";
-				MoveResult result = state.tryMakeMove(search.bestMove);
-				if (!result.applied)
-				{
-					std::cerr << "Engine malfunction: chose illegal move: " << StringifyEnum(result.checkStatus) << "\n";
-					__debugbreak();
-				}
-				state.updateStatus();
+				guiGameInProgress->update();
+				guiGameInProgress->draw();
 			}
-
-			if (state.gameStatus && *state.gameStatus != GameStatus::ONGOING) std::cout << "GAME OVER: " << StringifyEnum(*state.gameStatus) << "\n";
+			SDL_RenderPresent(rend);
 		}
 
 		//auto legal = state.getAllLegalMoves();

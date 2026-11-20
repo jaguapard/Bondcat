@@ -165,6 +165,7 @@
     <ClCompile Include="src\FEN_Codec.cpp" />
     <ClCompile Include="src\GameState.cpp" />
     <ClCompile Include="src\globals.cpp" />
+    <ClCompile Include="src\GUI_Game.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\Move.cpp" />
     <ClCompile Include="src\Square.cpp" />
@@ -176,6 +177,7 @@
     <ClInclude Include="src\FEN_Codec.h" />
     <ClInclude Include="src\GameState.h" />
     <ClInclude Include="src\globals.h" />
+    <ClInclude Include="src\GUI_Game.h" />
     <ClInclude Include="src\Move.h" />
     <ClInclude Include="src\Piece.h" />
     <ClInclude Include="src\Square.h" />

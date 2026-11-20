@@ -1,5 +1,5 @@
 #include "globals.h"
-
+#include <SDL3/SDL_image.h>
 /*
 const std::vector<Move>& Globals::getPieceMoveCandidates(Square from, PieceType type)
 {
@@ -107,5 +107,38 @@ void Globals::init()
 		slider_run(1, 0, directionRaysByOrigin[k][int(RIGHT)]);
 		slider_run(0, -1, directionRaysByOrigin[k][int(UP)]);
 		slider_run(0, 1, directionRaysByOrigin[k][int(DOWN)]);
+	}
+}
+
+void Globals::initGUI(SDL_Renderer* rend)
+{
+	pieceTextures.clear();
+	std::pair<PieceType, std::string> paths[] = {
+		{ PieceType::PAWN, "pawn" },
+		{ PieceType::ROOK, "rook" },
+		{ PieceType::KING, "king" },
+		{ PieceType::QUEEN, "queen" },
+		{ PieceType::BISHOP, "bishop" },
+		{ PieceType::KNIGHT, "knight" },
+	};
+	for (auto& it : paths)
+	{
+		std::string pth_w = "textures/white_" + it.second + ".png";
+		std::string pth_b = "textures/black_" + it.second + ".png";
+		SDL_Surface* s1 = IMG_Load(pth_w.c_str());
+		SDL_Surface* s2 = IMG_Load(pth_b.c_str());
+
+		PieceTexture t;
+		t.type = it.first;
+		t.team = Team::WHITE;
+		t.tex = SDL_CreateTextureFromSurface(rend, s1);
+		t.w = s1->w;
+		t.h = s1->h;
+		pieceTextures.emplace_back(t);
+		t.team = Team::BLACK;
+		t.tex = SDL_CreateTextureFromSurface(rend, s2);
+		t.w = s2->w;
+		t.h = s2->h;
+		pieceTextures.emplace_back(t);
 	}
 }
