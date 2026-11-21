@@ -1,4 +1,7 @@
 #pragma once
+#include "Piece.h"
+#include <string>
+
 enum class Direction
 {
 	LEFT_UP,
@@ -77,3 +80,7 @@ enum class GameStatus
 	DRAW_FIFTY_MOVE_RULE,
 	DRAW_INSUFFICIENT_MATERIAL,
 };
+
+std::string StringifyEnum(MoveCheckStatus status);
+std::string StringifyEnum(GameStatus status);
+std::string StringifyEnum(PieceType type);

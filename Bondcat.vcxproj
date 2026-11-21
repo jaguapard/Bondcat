@@ -161,6 +161,7 @@
     <ClCompile Include="src\Board.cpp" />
     <ClCompile Include="src\BoardView.cpp" />
     <ClCompile Include="src\BondcatException.cpp" />
+    <ClCompile Include="src\enums.cpp" />
     <ClCompile Include="src\FEN_Codec.cpp" />
     <ClCompile Include="src\GameState.cpp" />
     <ClCompile Include="src\globals.cpp" />
