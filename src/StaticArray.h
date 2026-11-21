@@ -24,6 +24,14 @@ public:
 		--count;
 	}
 
+	//Returns an index of first entrance of value in the array or nullopt if the value is not in the array
+	std::optional<uint32_t> find(const T& value)
+	{
+		auto f = std::find(arr.begin(), arr.end(), value);
+		if (f != arr.end()) return f - arr.begin();
+		return std::nullopt;
+	}
+
 	T& back() { return arr[count - 1]; }
 	const T& back() const { return arr[count - 1]; }
 
