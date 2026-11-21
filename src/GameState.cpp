@@ -552,24 +552,23 @@ std::string GameState::moveToAlgebraicNotation(Move move)
 
 	DerivedData dd = deriveStateData();
 	std::map<char, int> fittingRankCounts, fittingFileCounts;
-	std::set<char> fittingRanks, fittingFiles;
-	std::vector<Square> fittingSquares;
+	int fittingSquaresCount = 0;
 
 	if (movingPiece.type != PAWN)
 	{
 		for (auto& sq : Square::all_inBounds())
 		{
 			Move m = { sq,move.to,MOVE_TO_SQUARE };
-			if (getPieceAt(sq).teamedType == movingPiece.teamedType && std::find(dd.legalMoveList.begin(), dd.legalMoveList.end(), m) != dd.legalMoveList.end())
+			if (getPieceAt(sq).teamedType == movingPiece.teamedType && dd.legalMoveList.find(m))
 			{
 				std::string a = sq.toAlgebraic();
 				fittingFileCounts[a[0]]++;
 				fittingRankCounts[a[1]]++;
-				fittingSquares.push_back(sq);
+				fittingSquaresCount++;
 			}
 		}
 
-		if (fittingSquares.size() > 1)
+		if (fittingSquaresCount > 1)
 		{
 			std::string a = move.from.toAlgebraic();
 			for (auto& it : fittingFileCounts) if (it.first == a[0] && it.second == 1) { s.push_back(it.first); goto disambiguated; };
@@ -605,7 +604,7 @@ disambiguated:
 	this->updateStatus();
 	dd = deriveStateData();
 	bool check = st.whitesTurn ? dd.whiteChecked : dd.blackChecked;
-	bool checkmate = this->gameStatus == BLACK_WON_BY_CHECKMATE || this->gameStatus == WHITE_WON_BY_CHECKMATE;
+	bool checkmate = *this->gameStatus == BLACK_WON_BY_CHECKMATE || *this->gameStatus == WHITE_WON_BY_CHECKMATE;
 	this->rollbackMove(false);
 	this->gameStatus = std::nullopt;
 
