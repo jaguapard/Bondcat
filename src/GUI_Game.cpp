@@ -153,6 +153,21 @@ void GUI_Game::draw()
 {
 	boardDrawCtx.gameState = &gameState;
 	boardDrawCtx.textures = &Globals::pieceTextures;
+	boardDrawCtx.greenSquares.clear();
+	boardDrawCtx.yellowSquares.clear();
+	if (this->attackedSquareDisplay)
+	{
+		DerivedData dd = this->gameState.deriveStateData();
+		uint64_t greenSquares = dd.squaresAttackedByWhite;
+		uint64_t yellowSquares = dd.squaresAttackedByBlack;
+		if (!gameState.st.whitesTurn) std::swap(greenSquares, yellowSquares);
+		for (auto it : Square::all_inBounds())
+		{
+			uint64_t b = 1ull << it.toIndex();
+			//if (greenSquares & b) boardDrawCtx.greenSquares.insert(it);
+			if (yellowSquares & b) boardDrawCtx.yellowSquares.insert(it);
+		}
+	}
 	boardView.draw(rend, boardDrawCtx);
 }
 
@@ -161,6 +176,10 @@ void GUI_Game::handleEvent(SDL_Event event)
 	if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == 1)
 	{
 		this->onClick(event);
+	}
+	if (event.type == SDL_EVENT_KEY_DOWN && event.key.scancode == SDL_SCANCODE_H)
+	{
+		this->attackedSquareDisplay ^= 1;
 	}
 }
 
@@ -187,7 +206,7 @@ void GUI_Game::setActiveSquare(Square sq)
 	for (auto& move : dd.legalMoveList)
 	{
 		if (move.from != *boardDrawCtx.activeSquare) continue;
-		boardDrawCtx.circlesAt.push_back({ move.to.x, move.to.y });
+		boardDrawCtx.circlesAt.insert(move.to);
 	}
 }
 

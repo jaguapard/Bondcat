@@ -39,6 +39,11 @@ bool Square::operator==(const Square& other) const
 {
 	return x == other.x && y == other.y;
 }
+bool Square::operator<(const Square& other) const
+{
+	if (x == other.x) return y < other.y;
+	return x < other.x;
+}
 
 int Square::toIndex() const
 {

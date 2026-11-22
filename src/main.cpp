@@ -149,6 +149,7 @@ int main(int argc, char** argv)
 		SDL_CreateWindowAndRenderer("Bondcat the Chess Engine", w, h, 0, &wnd, &rend);
 		SDL_SetRenderVSync(rend, 1);
 		Globals::initGUI(rend);
+		SDL_SetRenderDrawBlendMode(rend, SDL_BLENDMODE_BLEND);
 
 		std::optional<GUI_Game> guiGameInProgress = GUI_Game(rend, w, h);
 		//state = GameState::fromFEN("rnb1kbnr/pppp1ppp/4p3/8/3Pq3/4B1P1/PPP2P1P/RN1QKBNR b KQkq - 1 4"); //queen blundering

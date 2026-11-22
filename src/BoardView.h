@@ -3,11 +3,12 @@
 #include <SDL3/SDL.h>
 #include "Square.h"
 #include "globals.h"
+#include <set>
 
 struct BoardDrawCtx
 {
 	std::optional<Square> activeSquare;
-	std::vector<Square> circlesAt;
+	std::set<Square> circlesAt, greenSquares, yellowSquares;
 	const std::vector<PieceTexture>* textures = nullptr;
 	GameState* gameState = nullptr;
 };

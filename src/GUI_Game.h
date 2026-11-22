@@ -24,6 +24,7 @@ private:
 	GameState gameState, initialState;
 	BoardView boardView;
 	BoardDrawCtx boardDrawCtx;
+	bool attackedSquareDisplay = false;
 	
 	std::optional<int> engineDelay;
 	enum class GUI_Game_State
