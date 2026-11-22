@@ -381,6 +381,7 @@ Piece GameState::getPieceAt(Square s)
 
 void GameState::updateStatus()
 {
+	if (this->gameStatus) return;
 	//Team nextTeamToMove = st.whitesTurn ? Team::WHITE : Team::BLACK;
 	DerivedData dd = deriveStateData();
 	bool kingChecked = st.whitesTurn ? dd.whiteChecked : dd.blackChecked;
@@ -818,6 +819,13 @@ DerivedData GameState::deriveStateData(DeriveOptions opts)
 				ret.legalMoveList.pop_back();
 			}
 			this->rollbackMove(false);
+		}
+
+		if (ret.legalMoveList.size() == 0)
+		{
+			if (!ret.blackChecked && !ret.whiteChecked) this->gameStatus = GameStatus::DRAW_STALEMATE;
+			else if (ret.whiteChecked) this->gameStatus = GameStatus::BLACK_WON_BY_CHECKMATE;
+			else this->gameStatus = GameStatus::WHITE_WON_BY_CHECKMATE;
 		}
 	}
 
