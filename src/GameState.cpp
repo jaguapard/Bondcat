@@ -209,16 +209,12 @@ SearchReturn GameState::findBestMoveInner(int remainingDepth, float alpha, float
 				std::popcount(st.board.black & st.board.knights) * 3 +
 				std::popcount(st.board.black & st.board.pawns) * 1;
 
-			bool saved = st.whitesTurn;
-			st.whitesTurn = true;
 			DerivedData dd = deriveStateData();
-			whiteScore += dd.legalMoveList.size() * 0.02;
+			float mobilityBonus = dd.legalMoveList.size() * 0.02;
 
-			st.whitesTurn = false;
-			dd = deriveStateData();
-			blackScore += dd.legalMoveList.size() * 0.02;
-
-			st.whitesTurn = saved;			
+			if (st.whitesTurn) whiteScore += mobilityBonus;
+			else blackScore += mobilityBonus;
+			
 			return whiteScore - blackScore;
 		}();
 	}
