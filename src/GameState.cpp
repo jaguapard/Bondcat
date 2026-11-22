@@ -902,7 +902,7 @@ std::string SearchReturn::toUCI() const
 	std::stringstream ss;
 	int evalScore = evaluation * 100;
 	int reportedScore = evalScore;
-	ss << "info depth " << depth << " nodes " << nodesSearched << " nps " << uint64_t(nodesPerSecond) << " score ";
+	ss << "info depth " << depth << " nodes " << nodesSearched << " time " << uint64_t(searchSeconds * 1000) << " nps " << uint64_t(nodesPerSecond) << " score ";
 	if (mateIn) ss << "mate " << *mateIn;
 	else ss << "cp " << reportedScore;
 
