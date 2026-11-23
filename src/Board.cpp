@@ -2,7 +2,7 @@
 #include <assert.h>
 #include <string.h>
 #include <bit>
-void Board::removePiece(int index)
+void Board::removePiece(uint32_t index)
 {
 	assert(index >= 0 && index < 64);
 	uint64_t mask = 1ull << index;
@@ -21,7 +21,7 @@ void Board::removePieces(uint64_t pieces)
 	pawns &= ~pieces;
 }
 
-void Board::movePiece(int fromIndex, int toIndex)
+void Board::movePiece(uint32_t fromIndex, uint32_t toIndex)
 {
 	uint64_t moveFrom = 1ull << fromIndex;
 	uint64_t moveTo = 1ull << toIndex;
