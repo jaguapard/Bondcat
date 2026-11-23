@@ -13,22 +13,6 @@
 
 #include "Board.h"
 
-/*
-struct LegalMoves
-{
-	std::vector<SimpleMove> simple;
-	std::vector<CastlingType> castlings;
-	std::vector<PromotionMove> promotions;
-	//std::array<bool, 4> castlings;
-	//std::array<PromotionMove, 8> promotions;
-};*/
-
-struct Path
-{
-	int startX, startY, stepX, stepY, stepCount;
-	bool isPointOnPath(int x, int y);
-};
-
 struct SearchParams
 {
 	int maxDepth = 5; //in plies
@@ -47,17 +31,6 @@ struct SearchReturn
 
 	std::string toUCI() const;
 };
-
-/*
-struct CompressedPosition
-{
-	CompressedPosition() = default;
-
-	std::array<uint64_t, 8> bits;
-	//CastlingRights castlingRights;
-	CompressedPosition(const Board& board);
-	bool operator<(const CompressedPosition& other) const;
-};*/
 
 struct StateStackEntry
 {
