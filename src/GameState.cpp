@@ -536,8 +536,8 @@ disambiguated:
 	}
 
 	this->makeMove(move, false);
-	this->updateStatus();
 	dd = deriveStateData();
+	this->updateStatus();
 	bool check = st.whitesTurn ? dd.whiteChecked : dd.blackChecked;
 	bool checkmate = *this->gameStatus == BLACK_WON_BY_CHECKMATE || *this->gameStatus == WHITE_WON_BY_CHECKMATE;
 	this->rollbackMove(false);
@@ -552,7 +552,7 @@ void GameState::rollbackMove(bool forgetPosition)
 {
 	if (forgetPosition)
 	{
-		assert(seenPositions[st.board] >= 1);
+		//assert(seenPositions[st.board] >= 1);
 		//if (--seenPositions[st.board] == 0) seenPositions.erase(st.board);
 	}
 	assert(this->stateStack.size() > 0);

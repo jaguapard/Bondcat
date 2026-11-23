@@ -102,7 +102,7 @@ public:
 
 	Team getCurrentTurnTeam();
 	StateStackEntry& getTopStateStackEntry();
-	std::optional<GameStatus> gameStatus;
+	std::optional<GameStatus> gameStatus = GameStatus::ONGOING;
 
 	Piece getPieceAt(Square s);
 
