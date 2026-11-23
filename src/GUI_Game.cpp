@@ -100,7 +100,7 @@ void GUI_Game::onClick(SDL_Event event)
 			{
 				this->guiState = CHOSE_PIECE;
 				this->clearActiveSquareSelection();
-				if (engineTeam != Team::NONE && !engineDelay.has_value()) engineDelay = 1; //postpone engine delay by 1 frame so the human's move is drawn before engine fires
+				if (engineEnabled && !engineDelay.has_value()) engineDelay = 1; //postpone engine delay by 1 frame so the human's move is drawn before engine fires
 			}
 			else std::cout << StringifyEnum(res.checkStatus) << "\n";
 		}
@@ -110,7 +110,7 @@ void GUI_Game::onClick(SDL_Event event)
 void GUI_Game::update()
 {
 	using enum GUI_Game_State;
-	if (guiState == CHOSE_PIECE && engineTeam == gameState.currTurnTeam)
+	if (guiState == CHOSE_PIECE && engineEnabled && engineTeam == gameState.currTurnTeam)
 	{
 		if (!engineDelay.has_value()) engineDelay = 1; //this is required for engine playing white
 		else if (*engineDelay == 0)
@@ -177,9 +177,19 @@ void GUI_Game::handleEvent(SDL_Event event)
 	{
 		this->onClick(event);
 	}
-	if (event.type == SDL_EVENT_KEY_DOWN && event.key.scancode == SDL_SCANCODE_H)
+	if (event.type == SDL_EVENT_KEY_DOWN)
 	{
-		this->attackedSquareDisplay ^= 1;
+		if (event.key.scancode == SDL_SCANCODE_H) this->attackedSquareDisplay ^= 1;
+		if (event.key.scancode == SDL_SCANCODE_E) this->engineEnabled ^= 1;
+		if (event.key.scancode == SDL_SCANCODE_T)
+		{
+			switch (engineTeam)
+			{
+			case Team::WHITE:this->engineTeam = Team::BLACK; break;
+			case Team::BLACK: this->engineTeam = Team::WHITE; break;
+			default: break;
+			}
+		}
 	}
 }
 

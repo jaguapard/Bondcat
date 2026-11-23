@@ -173,7 +173,7 @@ int main(int argc, char** argv)
 		if (line.substr(0,3) == "fen")
 		{
 			guiGameInProgress->loadFEN(line.substr(4));
-			guiGameInProgress->engineTeam = Team::NONE;
+			guiGameInProgress->engineEnabled = false;
 		}
 
 		

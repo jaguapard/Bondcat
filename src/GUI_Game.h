@@ -16,7 +16,8 @@ public:
 	void draw();
 	void handleEvent(SDL_Event event);
 
-	Team engineTeam = Team::BLACK; //NONE will disable the engine
+	Team engineTeam = Team::BLACK;
+	bool engineEnabled = true;
 private:
 	SDL_Renderer* rend;
 	int w, h;
