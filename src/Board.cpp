@@ -5,15 +5,20 @@
 void Board::removePiece(int index)
 {
 	assert(index >= 0 && index < 64);
-	uint64_t mask = ~(1ull << index);
-	white &= mask;
-	black &= mask;
-	kings &= mask;
-	queens &= mask;
-	rooks &= mask;
-	bishops &= mask;
-	knights &= mask;
-	pawns &= mask;
+	uint64_t mask = 1ull << index;
+	removePieces(mask);
+}
+
+void Board::removePieces(uint64_t pieces)
+{
+	white &= ~pieces;
+	black &= ~pieces;
+	kings &= ~pieces;
+	queens &= ~pieces;
+	rooks &= ~pieces;
+	bishops &= ~pieces;
+	knights &= ~pieces;
+	pawns &= ~pieces;
 }
 
 void Board::movePiece(int fromIndex, int toIndex)
