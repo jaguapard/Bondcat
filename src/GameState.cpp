@@ -339,36 +339,12 @@ void GameState::updateStatus()
 	//Team nextTeamToMove = st.whitesTurn ? Team::WHITE : Team::BLACK;
 	DerivedData dd = deriveStateData();
 	bool kingChecked = st.whitesTurn ? dd.whiteChecked : dd.blackChecked;
-	
-	if (kingChecked)
+	if (dd.legalMoveList.size() == 0)
 	{
-		bool checkmate = true;
-		bool rollback = false;
-		bool white = st.whitesTurn;
-		for (auto& move : dd.legalMoveList)
-		{
-			this->makeMove(move, false);
-			rollback = true;
-			
-			uint64_t kingIndex = _tzcnt_u64(st.board.kings & (white ? st.board.white : st.board.black));
-			bool kingChecked2 = isSquareAttacked(kingIndex, white);
-			if (!kingChecked2)
-			{
-				checkmate = false;
-				break;
-			}
-			this->rollbackMove(false);
-			rollback = false;
-		}
-
-		if (rollback) this->rollbackMove(false);
-		if (checkmate)
-		{
-			this->gameStatus = st.whitesTurn ? GameStatus::BLACK_WON_BY_CHECKMATE : GameStatus::WHITE_WON_BY_CHECKMATE;
-			return;
-		}
+		if (kingChecked) this->gameStatus = st.whitesTurn ? GameStatus::BLACK_WON_BY_CHECKMATE : GameStatus::WHITE_WON_BY_CHECKMATE;
+		else this->gameStatus = GameStatus::DRAW_STALEMATE;
+		return;
 	}
-	else if (dd.legalMoveList.size() == 0) { this->gameStatus = GameStatus::DRAW_STALEMATE; return; };
 	this->gameStatus = GameStatus::ONGOING;
 
 	if (st.halfmoves >= 100) { this->gameStatus = GameStatus::DRAW_FIFTY_MOVE_RULE; return; };
