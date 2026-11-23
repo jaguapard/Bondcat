@@ -167,6 +167,7 @@ SearchReturn GameState::findBestMoveInner(int remainingDepth, float alpha, float
 			terminalNodeEvalFromWhitesPerspective = -mateScore; break;
 		case GameStatus::DRAW_STALEMATE:
 		case GameStatus::DRAW_THREEFOLD_REPETITION:
+		case GameStatus::DRAW_FIFTY_MOVE_RULE:
 		case GameStatus::DRAW_INSUFFICIENT_MATERIAL:
 			terminalNodeEvalFromWhitesPerspective = 0.f; break;
 		default: break;
