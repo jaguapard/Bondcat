@@ -42,7 +42,7 @@ struct StateStackEntry
 
 	bool operator==(const StateStackEntry& rhs) const
 	{
-		return whitesTurn == rhs.whitesTurn && castlingRights == rhs.castlingRights && board == rhs.board;
+		return whitesTurn == rhs.whitesTurn && castlingRights == rhs.castlingRights && board == rhs.board && enpassant == rhs.enpassant;
 	}
 };
 
