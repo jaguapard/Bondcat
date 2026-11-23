@@ -1,7 +1,7 @@
 #pragma once
 #include <array>
 
-//Pre-allocated array with fixed max size. Starts out empty
+//Stack-located pre-allocated array with fixed max size. Starts out empty
 template <typename T, size_t N>
 class PreallocatedArray
 {
@@ -15,6 +15,7 @@ public:
 	}
 	void push_back(const T& value)
 	{
+		assert(count < N);
 		//if (count >= N) throw std::out_of_range("PreallocatedArray overflow");
 		arr[count++] = value;
 	}
