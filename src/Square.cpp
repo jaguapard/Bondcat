@@ -39,10 +39,20 @@ bool Square::operator==(const Square& other) const
 {
 	return x == other.x && y == other.y;
 }
+bool Square::operator<(const Square& other) const
+{
+	if (x == other.x) return y < other.y;
+	return x < other.x;
+}
 
 int Square::toIndex() const
 {
 	return y * 8 + x;
+}
+
+int Square::toFathomIndex() const
+{
+	return Square(x, 7 - y).toIndex();
 }
 
 std::string Square::toAlgebraic() const

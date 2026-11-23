@@ -5,6 +5,9 @@
 #include <SDL3/SDL.h>
 #include <tbprobe.h>
 #include "globals.h"
+#include "BondcatException.h"
+#include <unordered_set>
+#include <set>
 
 #pragma warning(push)
 #pragma warning(disable : 6262) //"This function uses X bytes of stack, consider moving to heap"
@@ -28,6 +31,11 @@ constexpr std::array<float, 64> bishopMult = {
 	0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95,
 	1, 1, 1, 1, 1, 1, 1, 1,
 };
+GameState::GameState()
+{
+	this->stateStack.push_back({});
+	//this->stateStack.reserve(1024);
+}
 SearchReturn GameState::findBestMove(SearchParams params)
 {
 	assert(params.maxDepth >= 1);
@@ -37,12 +45,11 @@ SearchReturn GameState::findBestMove(SearchParams params)
 	
 	bool endgameTablebaseHit = [&]() {
 		//The root node sets up the search start time and checks for tablebase hits, if any.
-		int pieceCount = 0;
-		uint64_t whitePieces = 0, blackPieces = 0, kings = 0, queens = 0, rooks = 0, bishops = 0, knights = 0, pawns = 0;
-
-		//Fathom uses different convention!!!!
+		//DO NOT pass st.board stuff here without change, since Fathom uses different convention!!!!
 		//Ours: a8=0, h8=7, ..., a1=56,h1=63
 		//Fathom: a1=0 (!), h1 = 7, a8 = 56, h8 = 63
+		int pieceCount = 0;
+		uint64_t whitePieces = 0, blackPieces = 0, kings = 0, queens = 0, rooks = 0, bishops = 0, knights = 0, pawns = 0;
 		int i = 0;
 		for (char rank = '1'; rank <= '8'; ++rank)
 		{
@@ -73,21 +80,21 @@ SearchReturn GameState::findBestMove(SearchParams params)
 				if (black) blackPieces |= pieceMask;
 				if (white) whitePieces |= pieceMask;
 			}
-			if (pieceCount > TB_LARGEST || !castlingRights.nonePresent()) return false;
+			if (pieceCount > TB_LARGEST || !st.castlingRights.nonePresent()) return false;
 		}
 
 		unsigned int tb_ret;
 		{
 			int enpassantIndex = 0;
-			if (this->enpassant) enpassantIndex = this->enpassant->x + (7 - this->enpassant->y) * 8;
+			if (st.enpassant) enpassantIndex = Square(_tzcnt_u64(st.enpassant)).toFathomIndex();
 			std::lock_guard lck(Globals::tablebase_mutex);
-			tb_ret = tb_probe_root(whitePieces, blackPieces, kings, queens, rooks, bishops, knights, pawns, this->halfmoves, false, enpassantIndex, this->whitesTurn, nullptr);
+			tb_ret = tb_probe_root(whitePieces, blackPieces, kings, queens, rooks, bishops, knights, pawns, st.halfmoves, false, enpassantIndex, st.whitesTurn, nullptr);
 		}
 
 		if (tb_ret == TB_RESULT_FAILED) return false;
 		if (tb_ret == TB_RESULT_CHECKMATE)
 		{
-			ret.evaluation = this->whitesTurn ? 10000 : -10000;
+			ret.evaluation = st.whitesTurn ? 10000 : -10000;
 			return true;
 		}
 		else if (tb_ret == TB_RESULT_STALEMATE)
@@ -145,6 +152,8 @@ SearchReturn GameState::findBestMoveInner(int remainingDepth, float alpha, float
 	ret.nodesSearched++;
 
 	std::optional<float> terminalNodeEvalFromWhitesPerspective; //this will be used for game-ended and search out of depth nodes
+	DerivedData dd = deriveStateData();
+	this->updateStatus(&dd);
 	//First, see if we're already done before any search
 	if (*this->gameStatus != GameStatus::ONGOING)
 	{
@@ -158,6 +167,7 @@ SearchReturn GameState::findBestMoveInner(int remainingDepth, float alpha, float
 			terminalNodeEvalFromWhitesPerspective = -mateScore; break;
 		case GameStatus::DRAW_STALEMATE:
 		case GameStatus::DRAW_THREEFOLD_REPETITION:
+		case GameStatus::DRAW_FIFTY_MOVE_RULE:
 		case GameStatus::DRAW_INSUFFICIENT_MATERIAL:
 			terminalNodeEvalFromWhitesPerspective = 0.f; break;
 		default: break;
@@ -165,23 +175,23 @@ SearchReturn GameState::findBestMoveInner(int remainingDepth, float alpha, float
 	}
 	else if (remainingDepth > 0) //else if there's depth remaining, search recursively
 	{
-		MoveList moves;
-		getAllLegalMoves(moves);
 		ret.evaluation = -INFINITY;
-		for (auto& move : moves)
+		for (auto& move : dd.legalMoveList)
 		{
 			//if (move.from == Square("f3") && move.to == Square("g2")) __debugbreak();
-			auto rollback = this->makeMove(move);
-			this->updateStatus();
+			this->makeMove(move);
 
 			SearchReturn subsearch = findBestMoveInner(remainingDepth - 1, -beta, -alpha, params);
 			ret.nodesSearched += subsearch.nodesSearched;
 			//in main search (not game-ended), the algorithm immediately returns current player's advantage, so no need to change it
-			if (-subsearch.evaluation > ret.evaluation) ret.bestMove = move;
-			ret.evaluation = std::max(-subsearch.evaluation, ret.evaluation);
-			alpha = std::max(alpha, ret.evaluation);
+			if (-subsearch.evaluation > ret.evaluation)
+			{
+				ret.bestMove = move;
+				ret.evaluation = -subsearch.evaluation;
+				alpha = -subsearch.evaluation;
+			}
 
-			this->rollbackMove(rollback);
+			this->rollbackMove();
 			if (alpha >= beta) break;
 		}
 	}
@@ -189,41 +199,106 @@ SearchReturn GameState::findBestMoveInner(int remainingDepth, float alpha, float
 	{
 		//negative for black advantage, positive for white advantage. Negamax expects it to be positive for current side advantaged, so it'll be adjusted later
 		terminalNodeEvalFromWhitesPerspective = [&]() -> float {
-			float whiteScore = 0, blackScore = 0;
-			MoveList moves;
-			this->getAllLegalMoves(moves);
-			float mobilityBonus = moves.size() * 0.02;
+			
+			float whiteScore =
+				std::popcount(st.board.white & st.board.queens) * 9 +
+				std::popcount(st.board.white & st.board.rooks) * 5 +
+				std::popcount(st.board.white & st.board.bishops) * 3.1 +
+				std::popcount(st.board.white & st.board.knights) * 3 +
+				std::popcount(st.board.white & st.board.pawns) * 1;
+			float blackScore =
+				std::popcount(st.board.black & st.board.queens) * 9 +
+				std::popcount(st.board.black & st.board.rooks) * 5 +
+				std::popcount(st.board.black & st.board.bishops) * 3.1 +
+				std::popcount(st.board.black & st.board.knights) * 3 +
+				std::popcount(st.board.black & st.board.pawns) * 1;
 
-			if (whitesTurn) whiteScore += mobilityBonus;
+			float mobilityBonus = dd.legalMoveList.size() * 0.02;
+
+			if (st.whitesTurn) whiteScore += mobilityBonus;
 			else blackScore += mobilityBonus;
-			/*
-			if (copy.whiteCanKingsideCastle) whiteScore += 0.5;
-			else if (copy.whiteCanQueensideCastle) whiteScore += 0.33;
-			if (copy.blackCanKingsideCastle) blackScore += 0.5;
-			else if (copy.blackCanQueensideCastle) blackScore += 0.33;*/
-
-			for (int i = 0; i < 64; ++i)
-			{
-				if (board[i].type == PieceType::EMPTY) continue;
-				Team pieceTeam = board[i].team;
-				float& score = pieceTeam == Team::WHITE ? whiteScore : blackScore;
-				switch (board[i].type)
-				{
-				case PieceType::PAWN: score += 1; break;
-				case PieceType::KNIGHT: score += 3; break;
-				case PieceType::BISHOP: score += 3.1; break;
-				case PieceType::ROOK: score += 5; break;
-				case PieceType::QUEEN: score += 9; break;
-				default: break;
-				}
-			}
+			
 			return whiteScore - blackScore;
 		}();
 	}
 
 	//override whatever lies in ret.evaluation if we have override for that (terminal nodes)
-	if (terminalNodeEvalFromWhitesPerspective) ret.evaluation = whitesTurn ? *terminalNodeEvalFromWhitesPerspective : -*terminalNodeEvalFromWhitesPerspective;
+	if (terminalNodeEvalFromWhitesPerspective) ret.evaluation = st.whitesTurn ? *terminalNodeEvalFromWhitesPerspective : -*terminalNodeEvalFromWhitesPerspective;
 	return ret;
+}
+
+
+//Scans a ray originating at sqaure ind going in direction D
+//Checks for obstructions on the way and returns the bit mask of the squares the ray can travel to unimpeded
+//Correctly takes into account allies and enemies (stops at first enemy (capture) or right before first ally on the way)
+template<Direction D>
+uint64_t scanRay(uint64_t ind, uint64_t allies, uint64_t enemies, const Board& board)
+{
+	uint64_t ray = Globals::directionRaysByOrigin[ind][size_t(D)];
+	uint64_t notEmpty = board.white | board.black;
+	uint64_t occludersMask = ray & notEmpty;
+	if (!occludersMask) return ray;
+
+	//TODO: lzcnt/tzcnt return 64 for all zeroes, and shifting by that is UB (in fact, it breaks on my system by rejecting paths that are correct). 
+	//Thus, branches for now. Think about ways of removing branches
+	using enum Direction;
+	uint64_t firstOccluderInd; //index of first occluder on the path, does not differentiate teams
+	uint64_t pathable; //mask indicating pathable squares (1 for steps before first occluder, 0 after)
+	//tzcnt and lzcnt basically scan the board in different directions, thus, the order defines first occluder index and what counts as "before first occluder"
+	if constexpr (D == LEFT || D == UP || D == LEFT_UP || D == RIGHT_UP)
+	{
+		firstOccluderInd = 63 - _lzcnt_u64(occludersMask);
+		pathable = ray & ~((1ull << firstOccluderInd) - 1);
+	}
+	else
+	{
+		firstOccluderInd = _tzcnt_u64(occludersMask);
+		uint64_t shiftMsk = 1ull << firstOccluderInd; //since shift by variable 64 is UB, an occluder at 63 (h1) would break naive 1ull<<(firstOccluderInd+1))
+		pathable = ray & ((shiftMsk << 1) - 1);
+	}
+
+	pathable &= ~allies;
+	return pathable;
+}
+uint64_t GameState::getSquaresAttackedByRookAt(uint64_t ind, uint64_t rookAllies)
+{
+	using enum Direction;
+	uint64_t empty = ~(st.board.white | st.board.black);
+	uint64_t paths = scanRay<LEFT>(ind, rookAllies, ~rookAllies & ~empty, st.board);
+	paths |= scanRay<RIGHT>(ind, rookAllies, ~rookAllies & ~empty, st.board);
+	paths |= scanRay<UP>(ind, rookAllies, ~rookAllies & ~empty, st.board);
+	paths |= scanRay<DOWN>(ind, rookAllies, ~rookAllies & ~empty, st.board);
+	return paths;
+}
+
+uint64_t GameState::getSquaresAttackedByBishopAt(uint64_t ind, uint64_t bishopAllies)
+{
+	using enum Direction;
+	uint64_t empty = ~(st.board.white | st.board.black);
+	uint64_t paths = scanRay<LEFT_UP>(ind, bishopAllies, ~bishopAllies & ~empty, st.board);
+	paths |= scanRay<RIGHT_UP>(ind, bishopAllies, ~bishopAllies & ~empty, st.board);
+	paths |= scanRay<LEFT_DOWN>(ind, bishopAllies, ~bishopAllies & ~empty, st.board);
+	paths |= scanRay<RIGHT_DOWN>(ind, bishopAllies, ~bishopAllies & ~empty, st.board);
+	return paths;
+}
+
+bool GameState::isSquareAttacked(uint64_t sqInd, bool forWhite)
+{
+	//abusing the symmetry of attacks:
+	//If a square is attacked by knight/king, then knight/king at this square can also attack the attacker
+	uint64_t enemies = forWhite ? st.board.black : st.board.white;
+	uint64_t allies = forWhite ? st.board.white: st.board.black;
+	if (st.board.knights & enemies & Globals::knightMoves[sqInd]) return true;
+	if (st.board.kings & enemies & Globals::kingMoves[sqInd]) return true;
+
+	//Same for sliders. If enemy slider is attacked by us, then we are also attacked
+	uint64_t sqBit = 1ull << sqInd;
+	if (getSquaresAttackedByBishopAt(sqInd, allies) & enemies & (st.board.bishops | st.board.queens)) return true;
+	if (getSquaresAttackedByRookAt(sqInd, allies) & enemies & (st.board.rooks | st.board.queens)) return true;
+
+	if (forWhite) return Globals::whitePawnCaptures[sqInd] & enemies & st.board.pawns;
+	else return Globals::blackPawnCaptures[sqInd] & enemies & st.board.pawns;
+	return false;
 }
 
 GameState GameState::newGame()
@@ -231,79 +306,68 @@ GameState GameState::newGame()
 	return fromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 }
 
-void GameState::updateStatus()
+Team GameState::getCurrentTurnTeam()
 {
-	Team nextTeamToMove = whitesTurn ? Team::WHITE : Team::BLACK;
-	bool kingChecked = isTeamsKingChecked(nextTeamToMove);
-	
-	MoveList allLegalMoves;
-	getAllLegalMoves(allLegalMoves);
-	if (kingChecked)
-	{
-		bool checkmate = true;
-		std::optional<MoveRollbackData> rollback;
-		for (auto& move : allLegalMoves)
-		{
-			rollback = this->makeMove(move);
-			if (!isTeamsKingChecked(nextTeamToMove))
-			{
-				checkmate = false;
-				break;
-			}
-			this->rollbackMove(*rollback);
-		}
+	if (st.whitesTurn) return Team::WHITE;
+	return Team::BLACK;
+}
 
-		if (rollback) this->rollbackMove(*rollback);
-		if (checkmate)
-		{
-			this->gameStatus = whitesTurn ? GameStatus::BLACK_WON_BY_CHECKMATE : GameStatus::WHITE_WON_BY_CHECKMATE;
-			return;
-		}
+StateStackEntry& GameState::getTopStateStackEntry()
+{
+	return stateStack.back();
+}
+
+Piece GameState::getPieceAt(Square s)
+{
+	using enum TeamedPieceType;
+	assert(s.inBounds());
+	uint64_t bit = 1ull << s.toIndex();
+	if (bit & st.board.white & st.board.kings) return WHITE_KING;
+	if (bit & st.board.white & st.board.queens) return WHITE_QUEEN;
+	if (bit & st.board.white & st.board.rooks) return WHITE_ROOK;
+	if (bit & st.board.white & st.board.bishops) return WHITE_BISHOP;
+	if (bit & st.board.white & st.board.knights) return WHITE_KNIGHT;
+	if (bit & st.board.white & st.board.pawns) return WHITE_PAWN;
+	if (bit & st.board.black & st.board.kings) return BLACK_KING;
+	if (bit & st.board.black & st.board.queens) return BLACK_QUEEN;
+	if (bit & st.board.black & st.board.rooks) return BLACK_ROOK;
+	if (bit & st.board.black & st.board.bishops) return BLACK_BISHOP;
+	if (bit & st.board.black & st.board.knights) return BLACK_KNIGHT;
+	if (bit & st.board.black & st.board.pawns) return BLACK_PAWN;
+	return EMPTY;
+}
+
+void GameState::updateStatus(const DerivedData* useDD)
+{
+	//Team nextTeamToMove = st.whitesTurn ? Team::WHITE : Team::BLACK;
+	const DerivedData& dd = useDD ? *useDD : deriveStateData();
+	bool kingChecked = st.whitesTurn ? dd.whiteChecked : dd.blackChecked;
+	if (dd.legalMoveList.size() == 0)
+	{
+		if (kingChecked) this->gameStatus = st.whitesTurn ? GameStatus::BLACK_WON_BY_CHECKMATE : GameStatus::WHITE_WON_BY_CHECKMATE;
+		else this->gameStatus = GameStatus::DRAW_STALEMATE;
+		return;
 	}
-	else if (allLegalMoves.size() == 0) { this->gameStatus = GameStatus::DRAW_STALEMATE; return; };
 	this->gameStatus = GameStatus::ONGOING;
 
-	if (this->halfmoves >= 100) { this->gameStatus = GameStatus::DRAW_FIFTY_MOVE_RULE; return; };
+	if (st.halfmoves >= 100) { this->gameStatus = GameStatus::DRAW_FIFTY_MOVE_RULE; return; };
 	//TODO: insufficient material
 
-	/* //unsure about this
-	bool insufficiet = [&]() {
-		bool wBishopLightSq = false, wBishopDarkSq = false, bBishopLightSq = false, bBishopDarkSq = false;
-		int wKnightCount = 0, bKnightCount = 0;
-		bool wLoneKing = true, bLoneKing = true;
-		for (int y = 0; y < 8; ++y)
+	//if (insufficiet) this->status = GameStatus::DRAW_INSUFFICIENT_MATERIAL;
+	int repetitions = 0;
+	if (st.halfmoves > 0)
+	{
+		for (int i = this->stateStack.size() - 1; i >= 0; i -= 2)
 		{
-			for (int x = 0; x < 8; ++x)
+			//if (this->stateStack[i].halfmoves == 0) break;
+			if (this->stateStack[i] == st) ++repetitions;
+			if (repetitions >= 3)
 			{
-				Piece& p = getPieceAt(x, y);
-				if (p.type != PieceType::KING && p.type != PieceType::EMPTY) p.team == WHITE ? (wLoneKing = false) : (bLoneKing = false);
-				if (p.type == PieceType::QUEEN || p.type == PieceType::ROOK || p.type == PieceType::PAWN) return false;
-				if (p.type == PieceType::KNIGHT) p.team == WHITE ? wKnightCount++ : bKnightCount++;
-				if (p.type == PieceType::BISHOP)
-				{
-					bool darkSq = ((x ^ y) % 2);
-					if (p.team == WHITE)
-					{
-						if (darkSq) wBishopLightSq = true;
-						else wBishopDarkSq = true;
-					}
-					if (p.team == BLACK)
-					{
-						if (darkSq) bBishopLightSq = true;
-						else bBishopDarkSq = true;
-					}
-				}
+				this->gameStatus = GameStatus::DRAW_THREEFOLD_REPETITION;
+				break;
 			}
 		}
-		if ((wBishopDarkSq && bBishopLightSq) || (wBishopLightSq && bBishopDarkSq)) return false;
-		if (wLoneKing )
-		return true;
-		}();
-	if (insufficiet) this->status = GameStatus::DRAW_INSUFFICIENT_MATERIAL;
-	*/
-	if (this->seenPositions[board] >= 3) { this->gameStatus = GameStatus::DRAW_THREEFOLD_REPETITION; return; }
-
-	//if (!this->gameStatus) __debugbreak()
+	}
 }
 
 void GameState::reset()
@@ -311,482 +375,460 @@ void GameState::reset()
 	*this = newGame();
 }
 
-void GameState::getAllLegalMoves(MoveList& ret)
-{
-	for (Square sq : Square::all_inBounds())
-	{
-		getAllLegalMovesForPieceAt(sq, ret);
-	}
-
-	for (auto ct : { MoveType::WHITE_KINGSIDE_CASTLE, MoveType::WHITE_QUEENSIDE_CASTLE, MoveType::BLACK_KINGSIDE_CASTLE, MoveType::BLACK_QUEENSIDE_CASTLE })
-	{
-		Move m;
-		m.type = ct;
-		if (isLegalMove(m) == MoveCheckStatus::LEGAL) ret.push_back(m);
-	}
-}
-void GameState::getAllLegalMovesForPieceAt(Square sq, MoveList& ret)
-{
-	if (!sq.inBounds()) return;
-
-	Piece& movingPiece = getPieceAt(sq);
-	for (auto move : Globals::getPieceMoveCandidates(sq, movingPiece.type))
-	{
-		if (isLegalMove(move) == MoveCheckStatus::LEGAL) ret.push_back(move);
-		if (movingPiece.type == PieceType::PAWN)
-		{
-			for (auto t : { MoveType::MOVE_AND_PROMOTE_TO_QUEEN, MoveType::MOVE_AND_PROMOTE_TO_ROOK, MoveType::MOVE_AND_PROMOTE_TO_BISHOP, MoveType::MOVE_AND_PROMOTE_TO_KNIGHT })
-			{
-				move.type = t;
-				if (isLegalMove(move) == MoveCheckStatus::LEGAL) ret.push_back(move);
-			}
-		}
-	}
-}
-
-Piece& GameState::getPieceAt(Square s)
-{
-	return board[s.y * 8 + s.x];
-}
-
-std::pair<Piece&, Piece&> GameState::getPiecesAtCaslingSquares(Move move)
-{
-	assert(move.isCastlingMove());
-	switch (move.type)
-	{
-	case MoveType::WHITE_KINGSIDE_CASTLE: return { getPieceAt("e1"), getPieceAt("h1") };
-	case MoveType::BLACK_KINGSIDE_CASTLE: return { getPieceAt("e8"), getPieceAt("h8") };
-	case MoveType::WHITE_QUEENSIDE_CASTLE: return { getPieceAt("e1"), getPieceAt("a1") };
-	case MoveType::BLACK_QUEENSIDE_CASTLE: return { getPieceAt("e8"), getPieceAt("a8") };
-	default: throw std::runtime_error("Invalid input for getPiecesAtCaslingSquares (move type is not one of the castling moves).");
-	}
-}
-
-MoveCheckStatus GameState::isLegalCastlingMove(Move move)
-{
-	using enum MoveCheckStatus;
-	if (!move.isCastlingMove()) return CASTLING_CHECK_ON_NONCASTLING_MOVE;
-	if (!castlingRights.corresponding(move.type)) return CASTLING_RIGHTS_ABSENT;
-
-	//castling locations are hardcoded
-	auto [king, rook] = getPiecesAtCaslingSquares(move);
-	if (king.type != PieceType::KING) return CASTLING_NOT_KING;
-	if (rook.type != PieceType::ROOK) return CASTLING_NOT_ROOK;
-	//if (king.hasMoved) return CASTLING_KING_MOVED;
-	//if (rook.hasMoved) return CASTLING_ROOK_MOVED;
-	if (king.team != rook.team) return CASTLING_KING_ROOK_TEAM_MISMATCH;
-
-	Team castleTeam = (move.type == MoveType::WHITE_KINGSIDE_CASTLE || move.type == MoveType::WHITE_QUEENSIDE_CASTLE) ? Team::WHITE : Team::BLACK;
-	bool kingsideCastle = (move.type == MoveType::WHITE_KINGSIDE_CASTLE || move.type == MoveType::BLACK_KINGSIDE_CASTLE);
-	if (castleTeam != king.team) return CASTLING_TEAM_MISMATCHED_KING_TEAM;
-	if ((castleTeam == Team::WHITE) != whitesTurn) return CASTLING_ATTEMPTED_ON_OPPONENTS_TURN; //can't castle on enemies turn!
-
-	std::array<int, 3> attackedCheckX, obstructionCheckX;
-	int kingY = castleTeam == Team::BLACK ? 0 : 7;
-	if (kingsideCastle)
-	{
-		attackedCheckX = { 4,5,6 };
-		obstructionCheckX = { 5,6,6 }; //duplicate last one as a hacky way to simplify next code (so length always stays at 3)
-	}
-	else
-	{
-		attackedCheckX = { 4,3,2 };
-		obstructionCheckX = { 3,2,1 };
-	}
-
-	for (int i = 0; i < 3; ++i)
-	{
-		if (getPieceAt(Square(obstructionCheckX[i], kingY)).type != PieceType::EMPTY) return CASTLING_PATH_OBSTRUCTED;
-		if (squareIsAttackedFor(attackedCheckX[i], kingY, castleTeam)) return CASTLING_PATH_PASSES_THROUGH_CHECK;
-	}
-	return LEGAL;
-}
-
-MoveCheckStatus GameState::isLegalMove(Move move)
-{
-	using enum MoveCheckStatus;
-	bool isCastling = move.isCastlingMove();
-	if (isCastling)
-	{
-		return isLegalCastlingMove(move);
-	}
-
-	//Non-castling, i.e. move or move+promote
-	if (move.from.outOfBounds()) return MoveCheckStatus::SRC_OUT_OF_BOUNDS;
-	if (move.to.outOfBounds()) return MoveCheckStatus::DST_OUT_OF_BOUNDS;
-	if (move.from == move.to) return MoveCheckStatus::STATIONARY_MOTION; //nothing burger
-
-	const Piece& movingPiece = getPieceAt(move.from);
-	const Piece& targetPiece = getPieceAt(move.to);
-	if ((movingPiece.team == Team::WHITE) != whitesTurn) return MoveCheckStatus::TURN_TEAM_MISMATCH; //can't move other side's pieces
-
-	//redundant simplifications
-	int dx = move.to.x - move.from.x;
-	int dy = move.to.y - move.from.y;
-	if (movingPiece.type == PieceType::EMPTY) return MoveCheckStatus::MOVING_EMPTY_SQUARE; //voids can't move
-
-	//filter out non-pawn promotions (can be encoded, but are never legal)
-	auto promotionTarget = move.getPromotionTarget();
-	if (promotionTarget && movingPiece.type != PieceType::PAWN) return MoveCheckStatus::PROMOTION_OF_NON_PAWN_PIECE;
-
-	//checks the legality of the move WITHOUT verifying if the kings are checked (thus, a move that leaves allied king checked will pass this for instance). That verification is ran later.
-	//Due to previous checks passing, we can assume that move is relatively clean here (doesn't try to go out of bounds, correct team, moving not empty square, etc).
-	//But it still can fail due to other things, so a preliminary check is isolated to the lambda.
-	MoveCheckStatus isLegalWithUncheckedKing = [&]() {
-		if (targetPiece.type != PieceType::EMPTY && targetPiece.team == movingPiece.team) return MoveCheckStatus::MOVING_OBSTRUCTED_BY_ALLY; //obstructed by ally
-		if (targetPiece.type == PieceType::KING) return MoveCheckStatus::TRYING_TO_CAPTURE_KING; //can't capture king
-
-		std::array<Path, 8> slidingPaths; //paths for sliding movements (not king or knight)
-		int pathCount = 0;
-		//basic movement
-		if (movingPiece.type == PieceType::KNIGHT)
-		{
-			return (std::abs(dx) == 1 && std::abs(dy) == 2) || (std::abs(dx) == 2 && std::abs(dy) == 1) ? LEGAL : MOVING_BAD_KNIGHT_JUMP;
-		}
-		if (movingPiece.type == PieceType::ROOK || movingPiece.type == PieceType::QUEEN)
-		{
-			slidingPaths[pathCount++] = this->getPath(move.from.x, move.from.y, -1, 0); //left
-			slidingPaths[pathCount++] = this->getPath(move.from.x, move.from.y, 1, 0); //right
-			slidingPaths[pathCount++] = this->getPath(move.from.x, move.from.y, 0, -1); //up
-			slidingPaths[pathCount++] = this->getPath(move.from.x, move.from.y, 0, 1); //down
-		}
-		if (movingPiece.type == PieceType::BISHOP || movingPiece.type == PieceType::QUEEN)
-		{
-			slidingPaths[pathCount++] = this->getPath(move.from.x, move.from.y, -1, -1); //left-up diagonal
-			slidingPaths[pathCount++] = this->getPath(move.from.x, move.from.y, 1, -1); //right-up
-			slidingPaths[pathCount++] = this->getPath(move.from.x, move.from.y, -1, 1); //left-down
-			slidingPaths[pathCount++] = this->getPath(move.from.x, move.from.y, 1, 1); //right-down
-		}
-
-		if (movingPiece.type == PieceType::PAWN)
-		{
-			auto promotionTarget = move.getPromotionTarget();
-			bool onLastRank = move.to.y == (movingPiece.team == Team::WHITE ? 0 : 7);
-			bool onStartingRank = move.from.y == (movingPiece.team == Team::WHITE ? 6 : 1);
-			if (promotionTarget && !onLastRank) return MoveCheckStatus::PAWN_PROMOTION_ON_NONLAST_RANK; //can promote only if on last rank
-			if (!promotionTarget && onLastRank) return MoveCheckStatus::PAWN_PROMOTION_ELIDED; //cannot stay as pawn on last rank, promotion required
-
-			int forward = movingPiece.team == Team::WHITE ? -1 : 1; //direction of forward movement in board's Y for current turn's team
-			bool moveToEnpassantSquare = enpassant && move.to == *enpassant;
-			bool trulyEmpty = !moveToEnpassantSquare && targetPiece.type == PieceType::EMPTY;
-			bool oneStep = dx == 0 && dy == forward && trulyEmpty;
-			bool twoSteps = dx == 0 && dy == forward * 2 && onStartingRank && trulyEmpty;
-			bool capture = abs(dx) == 1 && dy == forward && ((targetPiece.type != PieceType::EMPTY && targetPiece.team != movingPiece.team) || moveToEnpassantSquare);
-			if (capture) return LEGAL;
-			if (!oneStep && !twoSteps && !capture) return PAWN_GENERAL_MOVEMENT_ILLEGAL;
-			//after these checks, path can still be obstructed, so a check for that is still needed
-			slidingPaths[pathCount++] = this->getPath(move.from.x, move.from.y, 0, forward);
-		}
-
-		if (movingPiece.type == PieceType::KING)
-		{
-			if (abs(dx) > 1 || abs(dy) > 1) return MoveCheckStatus::KING_TOO_FAR;
-
-			for (auto kingCheckSq : Square::all_inBounds())
-			{
-				Piece& p = getPieceAt(kingCheckSq);
-				if (p.type == PieceType::KING && p.team != movingPiece.team)
-				{
-					if (abs(move.to.x - kingCheckSq.x) <= 1 && abs(move.to.y - kingCheckSq.y) <= 1) return MoveCheckStatus::KING_RUNS_INTO_ANOTHER_KING;
-					else break;
-				}
-			}
-			return MoveCheckStatus::LEGAL;
-		}
-
-		if (pathCount != 0) //sliding pieces paths can be blocked by other pieces, so scan the valid paths for whether they contain the target square
-		{
-			assert(movingPiece.type != PieceType::KNIGHT);
-			bool pathFound = false;
-			for (int i = 0; i < pathCount; ++i)
-			{
-				pathFound = slidingPaths[i].isPointOnPath(move.to.x, move.to.y);
-				if (pathFound) break;
-			}
-			if (!pathFound) return MOVING_SLIDING_PATHS_EXIST_BUT_NONE_MATCH;
-		}
-
-		return LEGAL;
-		}();
-
-	if (isLegalWithUncheckedKing != MoveCheckStatus::LEGAL) return isLegalWithUncheckedKing;
-
-	auto rollback = this->makeMove(move);
-	bool stillChecked = isTeamsKingChecked(whitesTurn ? Team::BLACK : Team::WHITE); //TODO: check this
-	this->rollbackMove(rollback);
-	return stillChecked ? MoveCheckStatus::MOVING_TEAMS_KING_IN_CHECK : MoveCheckStatus::LEGAL;
-}
-
-bool GameState::isTeamsKingChecked(Team team)
-{
-	if (team == Team::NONE) throw std::runtime_error("Attempted to check checked status for NONE team");
-	int kingX = -1, kingY = -1;
-	int i = 0;
-	for (const auto& it : board)
-	{
-		if (it.team == team && it.type == PieceType::KING)
-		{
-			kingX = i % 8;
-			kingY = i / 8;
-			break;
-		}
-		++i;
-	}
-
-	return squareIsAttackedFor(kingX, kingY, team);
-}
-
 MoveResult GameState::tryMakeMove(const Move& move)
 {
+	DerivedData dd = deriveStateData();
 	MoveResult ret;
 	ret.applied = false;
-	ret.checkStatus = isLegalMove(move);
-	if (ret.checkStatus == MoveCheckStatus::LEGAL)
+	ret.checkStatus = MoveCheckStatus::ILLEGAL_REASON_NOT_SPECIFIED;
+	if (std::find(dd.legalMoveList.begin(), dd.legalMoveList.end(), move) != dd.legalMoveList.end())
 	{
-		ret.rollbackData = this->makeMove(move);
 		ret.applied = true;
+		ret.plyIndex = this->makeMove(move);
+		ret.checkStatus = MoveCheckStatus::LEGAL;
 	}
 	return ret;
 }
 
-MoveRollbackData GameState::makeMove(const Move& move)
+uint32_t GameState::makeMove(const Move& move, bool rememberPosition)
 {
-	MoveRollbackData rollback;
-	rollback.castlingRights = castlingRights;
-	rollback.halfmoves = halfmoves;
-	rollback.fullmoves = fullmoves;
-	rollback.enpassant = enpassant;
-	rollback.board = board;
+	assert(std::popcount(st.board.kings) == 2);
+	this->stateStack.push_back(st);
+	this->st.halfmoves++;
+	this->st.whitesTurn = !this->st.whitesTurn;
+	this->st.fullmoves += this->st.whitesTurn;
 
-	this->halfmoves++;
-	this->whitesTurn ^= 1;
-	if (this->whitesTurn) this->fullmoves++;
-
+	using enum MoveType;
 	bool eraseEnpassant = true;
 	if (move.isCastlingMove())
 	{
-		auto [king, rook] = getPiecesAtCaslingSquares(move);
-		const char* rookSq = nullptr, * kingSq = nullptr;
-		if (move.type == MoveType::WHITE_KINGSIDE_CASTLE) { rookSq = "f1"; kingSq = "g1"; castlingRights.whiteKingside = false; castlingRights.whiteQueenside = false; }
-		if (move.type == MoveType::BLACK_KINGSIDE_CASTLE) { rookSq = "f8"; kingSq = "g8"; castlingRights.blackKingside = false; castlingRights.blackQueenside = false; }
-		if (move.type == MoveType::WHITE_QUEENSIDE_CASTLE) { rookSq = "d1"; kingSq = "c1"; castlingRights.whiteKingside = false; castlingRights.whiteQueenside = false; }
-		if (move.type == MoveType::BLACK_QUEENSIDE_CASTLE) { rookSq = "d8"; kingSq = "c8"; castlingRights.blackKingside = false; castlingRights.blackQueenside = false; }
-		getPieceAt(rookSq) = rook;
-		getPieceAt(kingSq) = king;
-		king = rook = {};
+		CastlingSquares cs(move.type);
+		st.board.movePiece(cs.kingStart.toIndex(), cs.kingEnd.toIndex());
+		st.board.movePiece(cs.rookStart.toIndex(), cs.rookEnd.toIndex());
+		if (move.type == MoveType::WHITE_KINGSIDE_CASTLE) {st.castlingRights.whiteKingside = false; st.castlingRights.whiteQueenside = false; }
+		else if (move.type == MoveType::BLACK_KINGSIDE_CASTLE) { st.castlingRights.blackKingside = false; st.castlingRights.blackQueenside = false; }
+		else if (move.type == MoveType::WHITE_QUEENSIDE_CASTLE) { st.castlingRights.whiteKingside = false; st.castlingRights.whiteQueenside = false; }
+		else if (move.type == MoveType::BLACK_QUEENSIDE_CASTLE) { st.castlingRights.blackKingside = false; st.castlingRights.blackQueenside = false; }
 	}
 	else
 	{
-		Piece& movingPiece = getPieceAt(move.from);
-		Piece& dstPiece = getPieceAt(move.to);
+		uint64_t srcBit = 1ull << move.from.toIndex();
+		uint64_t dstBit = 1ull << move.to.toIndex();
+		//a piece was captured or pawn was moved, reset halfmove clock
+		if ((dstBit & (st.board.black | st.board.white)) || (srcBit & st.board.pawns)) st.halfmoves = 0;
 
-		if (dstPiece.type != PieceType::EMPTY && dstPiece.team != movingPiece.team) this->halfmoves = 0;
-		bool black = movingPiece.team == Team::BLACK;
-		if (movingPiece.type == PieceType::ROOK)
+		if (st.board.rooks & (srcBit | dstBit)) //if rook moves or captured, remove corresponding castling rights 
 		{
-			if (move.from == Square(0, 0)) castlingRights.blackQueenside = false;
-			if (move.from == Square(7, 0)) castlingRights.blackKingside = false;
-			if (move.from == Square(0, 7)) castlingRights.whiteQueenside = false;
-			if (move.from == Square(7, 7)) castlingRights.whiteKingside = false;
+			if (move.from == Square(0, 0) || move.to == Square(0, 0)) st.castlingRights.blackQueenside = false;
+			if (move.from == Square(7, 0) || move.to == Square(7, 0)) st.castlingRights.blackKingside = false;
+			if (move.from == Square(0, 7) || move.to == Square(0, 7)) st.castlingRights.whiteQueenside = false;
+			if (move.from == Square(7, 7) || move.to == Square(7, 7)) st.castlingRights.whiteKingside = false;
 		}
-		if (movingPiece.type == PieceType::KING)
-		{
-			if (movingPiece.team == Team::BLACK) castlingRights.blackKingside = castlingRights.blackQueenside = false;
-			else castlingRights.whiteKingside = castlingRights.whiteQueenside = false;
-		}
+		if (srcBit & st.board.kings & st.board.white) st.castlingRights.whiteKingside = st.castlingRights.whiteQueenside = false;
+		if (srcBit & st.board.kings & st.board.black) st.castlingRights.blackKingside = st.castlingRights.blackQueenside = false;
 
 		auto promotionTarget = move.getPromotionTarget();
-		if (promotionTarget) dstPiece = { *promotionTarget, movingPiece.team };
-		else dstPiece = movingPiece;
-
-		if (movingPiece.type == PieceType::PAWN)
+		if (!promotionTarget)
 		{
-			this->halfmoves = 0;
-			int forwardForMovingPawn = move.to.y > move.from.y ? 1 : -1;
-			if (abs(move.to.y - move.from.y) == 2)
+			if (st.board.pawns & srcBit)
 			{
-				enpassant = Square(move.from.x, move.from.y + forwardForMovingPawn);
-				eraseEnpassant = false;
+				int forwardForMovingPawn = move.to.y > move.from.y ? 1 : -1;
+				if (abs(move.to.y - move.from.y) == 2)
+				{
+					st.enpassant = 1ull << Square(move.from.x, move.from.y + forwardForMovingPawn).toIndex();
+					eraseEnpassant = false;
+				}
+				else if (st.enpassant && dstBit == st.enpassant)
+				{
+					Square enpassantCapturedSq = Square(move.to.x, move.to.y - forwardForMovingPawn);
+					st.board.removePiece(enpassantCapturedSq.toIndex());
+				}
 			}
-			else if (enpassant && move.to == *enpassant)
-			{
-				Square enpassantCapturedSq = Square(enpassant->x, enpassant->y - forwardForMovingPawn);
-				getPieceAt(enpassantCapturedSq) = {};
-			}
+			st.board.movePiece(move.from.toIndex(), move.to.toIndex());	
 		}
+		else
+		{
+			st.board.movePiece(move.from.toIndex(), move.to.toIndex());
+			st.board.pawns &= ~dstBit;
 
-		movingPiece = {};
+			if (*promotionTarget == PieceType::QUEEN) st.board.queens |= dstBit;
+			else if (*promotionTarget == PieceType::ROOK) st.board.rooks |= dstBit;
+			else if (*promotionTarget == PieceType::BISHOP) st.board.bishops |= dstBit;
+			else if (*promotionTarget == PieceType::KNIGHT) st.board.knights |= dstBit;
+		}
 	}
 
-	if (eraseEnpassant) enpassant = std::nullopt;
+	if (eraseEnpassant) st.enpassant = 0;
 	//sadly, we can't put the check of game status here, since it creates infinite recursion of getting legal moves. 
 	//Thus, gameStatus is made optional that will explode on unwrapping, forcing callers to update game status
 	this->gameStatus = std::nullopt;
-	this->seenPositions[board]++;
-
-	return rollback;
+	
+	//if (rememberPosition) this->seenPositions[st.board]++;
+	return this->stateStack.size() - 1;
 }
 
-void GameState::rollbackMove(const MoveRollbackData& rollbackData)
+std::string GameState::moveToAlgebraicNotation(Move move)
 {
-	assert(seenPositions[board] >= 1);
-	if (--seenPositions[board] == 0) seenPositions.erase(board);
+	using enum MoveType;
+	using enum PieceType;
+	using enum GameStatus;
+	if (move.type == WHITE_KINGSIDE_CASTLE || move.type == BLACK_KINGSIDE_CASTLE) return "O-O";
+	if (move.type == WHITE_QUEENSIDE_CASTLE || move.type == BLACK_QUEENSIDE_CASTLE) return "O-O-O";
 
-	castlingRights = rollbackData.castlingRights;
-	halfmoves = rollbackData.halfmoves;
-	fullmoves = rollbackData.fullmoves;
-	enpassant = rollbackData.enpassant;
-	whitesTurn ^= 1;
-	board = rollbackData.board;
+	std::string s;
+	Piece movingPiece = getPieceAt(move.from);
+	switch (movingPiece.type)
+	{
+	case PAWN: break;
+	case KNIGHT: s = "N"; break;
+	case BISHOP: s = "B"; break;
+	case ROOK: s = "R"; break;
+	case QUEEN: s = "Q"; break;
+	case KING: s = "K"; break;
+	default: s = "(empty)"; break;
+	}
+
+	DerivedData dd = deriveStateData();
+	std::map<char, int> fittingRankCounts, fittingFileCounts;
+	int fittingSquaresCount = 0;
+
+	if (movingPiece.type != PAWN)
+	{
+		for (auto& sq : Square::all_inBounds())
+		{
+			Move m = { sq,move.to,MOVE_TO_SQUARE };
+			if (getPieceAt(sq).teamedType == movingPiece.teamedType && dd.legalMoveList.find(m))
+			{
+				std::string a = sq.toAlgebraic();
+				fittingFileCounts[a[0]]++;
+				fittingRankCounts[a[1]]++;
+				fittingSquaresCount++;
+			}
+		}
+
+		if (fittingSquaresCount > 1)
+		{
+			std::string a = move.from.toAlgebraic();
+			for (auto& it : fittingFileCounts) if (it.first == a[0] && it.second == 1) { s.push_back(it.first); goto disambiguated; };
+			for (auto& it : fittingRankCounts) if (it.first == a[1] && it.second == 1) { s.push_back(it.first); goto disambiguated; };
+			s += a;
+		}
+	}
+
+disambiguated:
+	Piece dstPiece = getPieceAt(move.to);
+	bool capture = dstPiece.type != EMPTY;
+	if (capture)
+	{
+		if (movingPiece.type == PAWN) s.push_back(move.from.toAlgebraic()[0]); //file of the capturing pawn
+		s.push_back('x');
+	}
+
+	s += move.to.toAlgebraic();
+	auto promotion = move.getPromotionTarget();
+	if (promotion)
+	{
+		switch (promotion.value())
+		{
+		case QUEEN: s += "=Q"; break;
+		case ROOK: s += "=R"; break;
+		case BISHOP: s += "=B"; break;
+		case KNIGHT: s += "=N"; break;
+		default: break;
+		}
+	}
+
+	this->makeMove(move, false);
+	dd = deriveStateData();
+	this->updateStatus();
+	bool check = st.whitesTurn ? dd.whiteChecked : dd.blackChecked;
+	bool checkmate = *this->gameStatus == BLACK_WON_BY_CHECKMATE || *this->gameStatus == WHITE_WON_BY_CHECKMATE;
+	this->rollbackMove(false);
+	this->gameStatus = std::nullopt;
+
+	if (checkmate) s.push_back('#');
+	else if (check) s.push_back('+');
+	return s;
+}
+
+void GameState::rollbackMove(bool forgetPosition)
+{
+	if (forgetPosition)
+	{
+		//assert(seenPositions[st.board] >= 1);
+		//if (--seenPositions[st.board] == 0) seenPositions.erase(st.board);
+	}
+	assert(this->stateStack.size() > 0);
+	this->stateStack.pop_back();
+}
+
+DerivedData GameState::deriveStateData(DeriveOptions opts)
+{
+	assert(std::popcount(st.board.kings) == 2);
+	DerivedData ret;
+	//ret.motionMatrix = { 0 };
+	uint64_t allies = st.whitesTurn ? st.board.white : st.board.black;
+	uint64_t enemies = st.whitesTurn ? st.board.black : st.board.white;
+	uint64_t notEmpty = st.board.black | st.board.white;
+	uint64_t empty = ~notEmpty;
+
+	uint64_t squaresAttackedByWhite = 0, squaresAttackedByBlack = 0;
+	
+	const auto& rays = Globals::directionRaysByOrigin;
+	uint64_t asdd = st.board.white & st.board.rooks;
+	using enum Direction;
+	using enum MoveType;
+
+	//unpacks the moves bitmask and pushes it's moves into the move list. 
+	//if promotions == false (default), only pushes movements to destination squares
+	//otherwise, pushes only movements to destination squares WITH promotion (all 4 possible promotions pushed)
+	auto commit_moves = [&](uint64_t moves, uint64_t pieceInd, bool promotions = false) {
+		while (moves)
+		{
+			uint64_t pathDstInd = _tzcnt_u64(moves);
+			if (!promotions) ret.legalMoveList.push_back({ Square(pieceInd),Square(pathDstInd), MoveType::MOVE_TO_SQUARE });
+			else
+			{
+				for (auto it : { MOVE_AND_PROMOTE_TO_QUEEN, MOVE_AND_PROMOTE_TO_ROOK, MOVE_AND_PROMOTE_TO_BISHOP, MOVE_AND_PROMOTE_TO_KNIGHT })
+					ret.legalMoveList.push_back({ Square(pieceInd),Square(pathDstInd), it });
+			}
+			moves &= ~(1ull << pathDstInd);
+		}
+		};
+	//on our board, tzcnt basically scans from from top-left to bottom right, lzcnt - from bottom-right to top-left (inverse of lzcnt)
+	//Thus, one such instruction can do entire loop's worth of scanning
+
+	uint64_t whiteKnights = st.board.white & st.board.knights;
+	uint64_t blackKnights = st.board.black & st.board.knights;
+	while (whiteKnights)
+	{
+		uint64_t ind = _tzcnt_u64(whiteKnights);
+		uint64_t moves = Globals::knightMoves[ind];
+		whiteKnights &= ~(1ull << ind);
+		squaresAttackedByWhite |= moves;
+		if (opts.makeLegalMoveList && st.whitesTurn) commit_moves(moves & ~st.board.white & ~st.board.kings, ind);
+	}
+	while (blackKnights)
+	{
+		uint64_t ind = _tzcnt_u64(blackKnights);
+		uint64_t moves = Globals::knightMoves[ind];
+		blackKnights &= ~(1ull << ind);
+		squaresAttackedByBlack |= moves;
+		if (opts.makeLegalMoveList && !st.whitesTurn) commit_moves(moves & ~st.board.black & ~st.board.kings, ind);
+	}
+
+	uint64_t whiteRookLike = st.board.white & (st.board.rooks | st.board.queens);
+	uint64_t blackRookLike = st.board.black & (st.board.rooks | st.board.queens);
+	while (whiteRookLike)
+	{
+		uint64_t ind = _tzcnt_u64(whiteRookLike);
+		uint64_t paths = this->getSquaresAttackedByRookAt(ind, st.board.white);
+		squaresAttackedByWhite |= paths;
+		whiteRookLike &= ~(1ull << ind);
+		if (opts.makeLegalMoveList && st.whitesTurn) commit_moves(paths & ~st.board.kings, ind);
+	}
+	while (blackRookLike)
+	{
+		uint64_t ind = _tzcnt_u64(blackRookLike);
+		uint64_t paths = this->getSquaresAttackedByRookAt(ind, st.board.black);
+		squaresAttackedByBlack |= paths;
+		blackRookLike &= ~(1ull << ind);
+		if (opts.makeLegalMoveList && !st.whitesTurn) commit_moves(paths & ~st.board.kings, ind);
+	}
+
+	uint64_t whiteBishopLike = st.board.white & (st.board.bishops | st.board.queens);
+	uint64_t blackBishopLike = st.board.black & (st.board.bishops | st.board.queens);
+	while (whiteBishopLike)
+	{
+		uint64_t ind = _tzcnt_u64(whiteBishopLike);
+		uint64_t paths = this->getSquaresAttackedByBishopAt(ind, st.board.white);
+		squaresAttackedByWhite |= paths;
+		whiteBishopLike &= ~(1ull << ind);
+		if (opts.makeLegalMoveList && st.whitesTurn) commit_moves(paths & ~st.board.kings, ind);
+	}
+	while (blackBishopLike)
+	{
+		uint64_t ind = _tzcnt_u64(blackBishopLike);
+		uint64_t paths = this->getSquaresAttackedByBishopAt(ind, st.board.black);
+		squaresAttackedByBlack |= paths;
+		blackBishopLike &= ~(1ull << ind);
+		if (opts.makeLegalMoveList && !st.whitesTurn) commit_moves(paths & ~st.board.kings, ind);
+	}
+
+	uint64_t whitePawns = st.board.pawns & st.board.white, blackPawns = st.board.pawns & st.board.black;
+	while (whitePawns)
+	{
+		uint64_t ind = _tzcnt_u64(whitePawns);
+		uint64_t paths = this->getSquaresAttackedByRookAt(ind, st.board.white) & Globals::whitePawnMoves[ind] & empty;
+		whitePawns &= ~(1ull << ind);
+		squaresAttackedByWhite |= Globals::whitePawnCaptures[ind];
+		if (opts.makeLegalMoveList && st.whitesTurn)
+		{
+			commit_moves(paths & ~st.board.kings, ind, ind >= 8 && ind < 16); //moves+promotions
+			commit_moves(Globals::whitePawnCaptures[ind] & ~st.board.kings & st.board.black, ind, ind >= 8 && ind < 16);
+			commit_moves(Globals::whitePawnCaptures[ind] & st.enpassant, ind);
+		}
+	}
+	while (blackPawns)
+	{
+		uint64_t ind = _tzcnt_u64(blackPawns);
+		uint64_t paths = this->getSquaresAttackedByRookAt(ind, st.board.black) & Globals::blackPawnMoves[ind] & empty;
+		blackPawns &= ~(1ull << ind);
+		squaresAttackedByBlack |= Globals::blackPawnCaptures[ind];
+		if (opts.makeLegalMoveList && !st.whitesTurn)
+		{
+			commit_moves(paths & ~st.board.kings, ind, ind >= 48 && ind < 56); //moves+promotions
+			commit_moves(Globals::blackPawnCaptures[ind] & ~st.board.kings & st.board.white, ind, ind >= 48 && ind < 56);
+			commit_moves(Globals::blackPawnCaptures[ind] & st.enpassant, ind);
+		}
+	}
+	
+	int kingIndex = _tzcnt_u64(allies & st.board.kings);
+	ret.whiteKingIndex = _tzcnt_u64(st.board.kings & st.board.white);
+	ret.blackKingIndex = _tzcnt_u64(st.board.kings & st.board.black);
+	{
+		uint64_t wkingMoves = Globals::kingMoves[ret.whiteKingIndex] & ~st.board.white;
+		uint64_t bkingMoves = Globals::kingMoves[ret.blackKingIndex] & ~st.board.black;
+		squaresAttackedByWhite |= wkingMoves;
+		squaresAttackedByBlack |= bkingMoves;
+		if (opts.makeLegalMoveList) commit_moves((st.whitesTurn ? wkingMoves : bkingMoves) & ~st.board.kings, st.whitesTurn ? ret.whiteKingIndex : ret.blackKingIndex);
+	}
+	
+	uint64_t squaresAttackedByEnemy = st.whitesTurn ? squaresAttackedByBlack : squaresAttackedByWhite;
+	
+	//ret.motionMatrix[kingIndex] &= ~squaresAttackedByEnemy;
+	ret.squaresAttackedByBlack = squaresAttackedByBlack;
+	ret.squaresAttackedByWhite = squaresAttackedByWhite;
+
+	ret.whiteChecked = st.board.kings & st.board.white & squaresAttackedByBlack;
+	ret.blackChecked = st.board.kings & st.board.black & squaresAttackedByWhite;
+
+	if (opts.makeLegalMoveList)
+	{
+		if (st.whitesTurn)
+		{
+			if (st.castlingRights.whiteKingside)
+			{
+				uint64_t emptyCheck = (1ull << 61) | (1ull << 62);
+				uint64_t checkCheck = (1ull << 60) | (1ull << 61) | (1ull << 62);
+				if (!(notEmpty & emptyCheck) && !(squaresAttackedByEnemy & checkCheck)) ret.legalMoveList.push_back(Move({}, {}, MoveType::WHITE_KINGSIDE_CASTLE));
+			}
+			if (st.castlingRights.whiteQueenside)
+			{
+				uint64_t emptyCheck = (1ull << 57) | (1ull << 58) | (1ull << 59);
+				uint64_t checkCheck = (1ull << 58) | (1ull << 59) | (1ull << 60);
+				if (!(notEmpty & emptyCheck) && !(squaresAttackedByEnemy & checkCheck)) ret.legalMoveList.push_back(Move({}, {}, MoveType::WHITE_QUEENSIDE_CASTLE));
+			}
+		}
+		else
+		{
+			if (st.castlingRights.blackKingside)
+			{
+				uint64_t emptyCheck = (1ull << 5) | (1ull << 6);
+				uint64_t checkCheck = (1ull << 4) | (1ull << 5) | (1ull << 6);
+				if (!(notEmpty & emptyCheck) && !(squaresAttackedByEnemy & checkCheck)) ret.legalMoveList.push_back(Move({}, {}, MoveType::BLACK_KINGSIDE_CASTLE));
+			}
+			if (st.castlingRights.blackQueenside)
+			{
+				uint64_t emptyCheck = (1ull << 1) | (1ull << 2) | (1ull << 3);
+				uint64_t checkCheck = (1ull << 2) | (1ull << 3) | (1ull << 4);
+				if (!(notEmpty & emptyCheck) && !(squaresAttackedByEnemy & checkCheck)) ret.legalMoveList.push_back(Move({}, {}, MoveType::BLACK_QUEENSIDE_CASTLE));
+			}
+		}
+
+		//now all pseudo legal moves are in the list, the list needs to be filtered to remove moves that put/leave the moving team's king in check
+		//final filter: disallow moves that put or leave our king in check
+		DeriveOptions opts2;
+		opts2.makeLegalMoveList = false;
+		opts2.skipPinChecks = true;
+		bool savedWhitesTurn = st.whitesTurn;
+		for (int i = 0; i < ret.legalMoveList.size(); ++i)
+		{
+			this->makeMove(ret.legalMoveList[i], false);
+			uint64_t kingIndex = _tzcnt_u64(st.board.kings & (savedWhitesTurn ? st.board.white : st.board.black));
+			if (this->isSquareAttacked(kingIndex, savedWhitesTurn))
+			{
+				ret.legalMoveList[i--] = ret.legalMoveList.back();
+				ret.legalMoveList.pop_back();
+			}
+			this->rollbackMove(false);
+		}
+	}
+
+	//TODO: maybe can put game status update here too?
+	//TODO: add attackers and defender matrices and check king check avoidance with them instead of emulating move?
+	return ret;
 }
 
 GameState GameState::fromFEN(const std::string& s)
 {
 	GameState ret;
 	FEN_Codec codec(s);
-	ret.whitesTurn = codec.whitesTurn;
-	ret.castlingRights = codec.castlingRights;
-	ret.halfmoves = codec.halfmoves;
-	ret.fullmoves = codec.fullmoves;
-	ret.board = codec.board;
-	ret.enpassant = codec.enpassant;
+	ret.st.whitesTurn = codec.whitesTurn;
+	ret.st.castlingRights = codec.castlingRights;
+	ret.st.halfmoves = codec.halfmoves;
+	ret.st.fullmoves = codec.fullmoves;
+	ret.st.enpassant = codec.enpassant ? (1ull << codec.enpassant->toIndex()) : 0;
+
+	for (int i = 0; i < 64; ++i)
+	{
+		uint64_t bit = 1ull << i;
+		switch (codec.board[i].teamedType)
+		{
+		case TeamedPieceType::WHITE_KING: ret.st.board.white |= bit; ret.st.board.kings |= bit; break;
+		case TeamedPieceType::WHITE_QUEEN: ret.st.board.white |= bit; ret.st.board.queens |= bit; break;
+		case TeamedPieceType::WHITE_ROOK: ret.st.board.white |= bit; ret.st.board.rooks |= bit; break;
+		case TeamedPieceType::WHITE_BISHOP: ret.st.board.white |= bit; ret.st.board.bishops |= bit; break;
+		case TeamedPieceType::WHITE_KNIGHT: ret.st.board.white |= bit; ret.st.board.knights |= bit; break;
+		case TeamedPieceType::WHITE_PAWN: ret.st.board.white |= bit; ret.st.board.pawns |= bit; break;
+		case TeamedPieceType::BLACK_KING: ret.st.board.black |= bit; ret.st.board.kings |= bit; break;
+		case TeamedPieceType::BLACK_QUEEN: ret.st.board.black |= bit; ret.st.board.queens |= bit; break;
+		case TeamedPieceType::BLACK_ROOK: ret.st.board.black |= bit; ret.st.board.rooks |= bit; break;
+		case TeamedPieceType::BLACK_BISHOP: ret.st.board.black |= bit; ret.st.board.bishops |= bit; break;
+		case TeamedPieceType::BLACK_KNIGHT: ret.st.board.black |= bit; ret.st.board.knights |= bit; break;
+		case TeamedPieceType::BLACK_PAWN: ret.st.board.black |= bit; ret.st.board.pawns |= bit; break;
+		case TeamedPieceType::EMPTY: break;
+		default: throw BondcatException((std::stringstream() << "Unknown teamed piece type: " + int(codec.board[i].teamedType) << " at index " << i).str());
+		}
+	}
 	ret.updateStatus();
 	return ret;
-}
-
-std::string GameState::xyToAlgebraic(int x, int y)
-{
-	std::string s = "na";
-	s[0] = 'a' + x;
-	s[1] = '8' - y;
-	return s;
 }
 
 std::string GameState::toFEN()
 {
 	FEN_Codec codec;
-	codec.whitesTurn = whitesTurn;
-	codec.castlingRights = castlingRights;
-	codec.halfmoves = halfmoves;
-	codec.fullmoves = fullmoves;
-	codec.board = board;
-	codec.enpassant = enpassant;
+	codec.whitesTurn = st.whitesTurn;
+	codec.castlingRights = st.castlingRights;
+	codec.halfmoves = st.halfmoves;
+	codec.fullmoves = st.fullmoves;
+	if (st.enpassant) codec.enpassant = Square(_tzcnt_u64(st.enpassant));
+	
+	using enum TeamedPieceType;
+	for (int i = 0; i < 64; ++i)
+	{
+		uint64_t bit = 1ull << i;
+		Piece& dst = codec.board[i];
+		if (bit & st.board.white)
+		{
+			if (bit & st.board.kings) dst = WHITE_KING;
+			if (bit & st.board.queens) dst = WHITE_QUEEN;
+			if (bit & st.board.rooks) dst = WHITE_ROOK;
+			if (bit & st.board.bishops) dst = WHITE_BISHOP;
+			if (bit & st.board.knights) dst = WHITE_KNIGHT;
+			if (bit & st.board.pawns) dst = WHITE_PAWN;
+		}
+		if (bit & st.board.black)
+		{
+			if (bit & st.board.kings) dst = BLACK_KING;
+			if (bit & st.board.queens) dst = BLACK_QUEEN;
+			if (bit & st.board.rooks) dst = BLACK_ROOK;
+			if (bit & st.board.bishops) dst = BLACK_BISHOP;
+			if (bit & st.board.knights) dst = BLACK_KNIGHT;
+			if (bit & st.board.pawns) dst = BLACK_PAWN;
+		}
+	}
 	return codec.toFEN();
-}
-
-Path GameState::getPath(int startX, int startY, int stepX, int stepY)
-{
-	Path ret;
-	ret.stepCount = 0;
-	ret.startX = startX;
-	ret.startY = startY;
-	ret.stepX = stepX;
-	ret.stepY = stepY;
-
-	int x = startX, y = startY;
-	Piece& movingPiece = getPieceAt(Square(x,y));
-	assert(movingPiece.type != PieceType::EMPTY);
-	while (true)
-	{
-		x += stepX;
-		y += stepY;
-		if (x < 0 || x > 7 || y < 0 || y > 7) return ret;
-
-		Piece& targetPiece = getPieceAt(Square(x, y));
-		bool shouldReturn = false;
-		if (targetPiece.type != PieceType::EMPTY)
-		{
-			if (targetPiece.team == movingPiece.team) return ret; //return without increment, can't make that move
-			else shouldReturn = true; //can capture enemy
-		}
-		ret.stepCount++;
-		if (shouldReturn) return ret; //thus, this flag has to control the return
-	}
-}
-
-bool GameState::squareIsAttackedFor(int x, int y, Team team)
-{
-	//TODO: is this correct?
-	if (team == Team::NONE) throw std::runtime_error("Square attack checked for NONE team");
-
-	int enemyPawnForward = team == Team::WHITE ? 1 : -1;
-	for (int y2 = 0; y2 < 8; ++y2)
-	{
-		for (int x2 = 0; x2 < 8; ++x2)
-		{
-			Piece& attacker = getPieceAt(Square(x2,y2));
-			if (attacker.type == PieceType::EMPTY || attacker.team == team) continue;
-
-			int dx = x - x2, dy = y - y2; //direction flipped since perspective is too (x2,y2 is the source of the threat, (x,y) is destination of it)
-			if (attacker.type == PieceType::KNIGHT && ((std::abs(dx) == 1 && std::abs(dy) == 2) || (std::abs(dx) == 2 && std::abs(dy) == 1))) return true;
-			if (attacker.type == PieceType::KING && abs(dx) < 1 && abs(dy) < 1) return true;
-			if (attacker.type == PieceType::PAWN)
-				if (abs(dx) == 1 && dy == enemyPawnForward) return true;
-
-			std::array<Path, 8> slidingPaths;
-			int pathCount = 0;
-
-			if (attacker.type == PieceType::ROOK || attacker.type == PieceType::QUEEN)
-			{
-				slidingPaths[pathCount++] = this->getPath(x2,y2, -1, 0); //left
-				slidingPaths[pathCount++] = this->getPath(x2, y2, 1, 0); //right
-				slidingPaths[pathCount++] = this->getPath(x2, y2, 0, -1); //up
-				slidingPaths[pathCount++] = this->getPath(x2, y2, 0, 1); //down
-			}
-			if (attacker.type == PieceType::BISHOP || attacker.type == PieceType::QUEEN)
-			{
-				slidingPaths[pathCount++] = this->getPath(x2, y2, -1, -1); //left-up diagonal
-				slidingPaths[pathCount++] = this->getPath(x2, y2, 1, -1); //right-up
-				slidingPaths[pathCount++] = this->getPath(x2, y2, -1, 1); //left-down
-				slidingPaths[pathCount++] = this->getPath(x2, y2, 1, 1); //right-down
-			}
-			for (int i = 0; i < pathCount; ++i)
-			{
-				if (slidingPaths[i].isPointOnPath(x, y) && slidingPaths[i].stepCount != 0) return true;
-			}
-		}
-	}
-	return false;
-}
-
-bool Path::isPointOnPath(int x, int y)
-{
-	assert(stepX != 0 || stepY != 0);
-	int nStepsX, nStepsY;
-	if (stepX == 0)
-	{
-		if (x != startX) return false;
-		nStepsY = (y - startY) / stepY;
-		return nStepsY >= 0 && nStepsY <= stepCount;
-	}
-	if (stepY == 0)
-	{
-		if (y != startY) return false;
-		nStepsX = (x - startX) / stepX;
-		return nStepsX >= 0 && nStepsX <= stepCount;
-	}
-
-	nStepsX = (x - startX) / stepX;
-	nStepsY = (y - startY) / stepY;
-	return nStepsX >= 0 && nStepsY >= 0 && nStepsX == nStepsY && nStepsX <= stepCount && nStepsY <= stepCount;
-}
-
-CompressedPosition::CompressedPosition(const std::array<Piece, 64>& board)
-{
-	//Piece class is now properly made, so unless something stupid is being done (like changing values in raw memory bypassing Piece and it's enum class machinery),
-	//the same this->bits should (TODO: verify) be same positions
-	static_assert(sizeof(this->bits) == sizeof(board));
-	memcpy(this->bits.data(), board.data(), sizeof(board));
-}
-
-bool CompressedPosition::operator<(const CompressedPosition& other) const
-{
-	for (int i = 0; i < std::size(bits); ++i)
-	{
-		if (bits[i] == other.bits[i]) continue;
-		return bits[i] < other.bits[i];
-	}
-	return false; //equal
 }
 
 std::string SearchReturn::toUCI() const
@@ -794,7 +836,7 @@ std::string SearchReturn::toUCI() const
 	std::stringstream ss;
 	int evalScore = evaluation * 100;
 	int reportedScore = evalScore;
-	ss << "info depth " << depth << " nodes " << nodesSearched << " nps " << uint64_t(nodesPerSecond) << " score ";
+	ss << "info depth " << depth << " nodes " << nodesSearched << " time " << uint64_t(searchSeconds * 1000) << " nps " << uint64_t(nodesPerSecond) << " score ";
 	if (mateIn) ss << "mate " << *mateIn;
 	else ss << "cp " << reportedScore;
 

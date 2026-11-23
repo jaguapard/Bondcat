@@ -8,23 +8,10 @@
 #include <assert.h>
 #include <chrono>
 #include <map>
-#include "StaticArray.h"
+#include "PreallocatedArray.h"
 #include "FEN_Codec.h"
-/*
-struct LegalMoves
-{
-	std::vector<SimpleMove> simple;
-	std::vector<CastlingType> castlings;
-	std::vector<PromotionMove> promotions;
-	//std::array<bool, 4> castlings;
-	//std::array<PromotionMove, 8> promotions;
-};*/
 
-struct Path
-{
-	int startX, startY, stepX, stepY, stepCount;
-	bool isPointOnPath(int x, int y);
-};
+#include "Board.h"
 
 struct SearchParams
 {
@@ -45,28 +32,25 @@ struct SearchReturn
 	std::string toUCI() const;
 };
 
-struct CompressedPosition
+struct StateStackEntry
 {
-	CompressedPosition() = default;
-
-	std::array<uint64_t, 8> bits;
-	CompressedPosition(const std::array<Piece, 64>& board);
-	bool operator<(const CompressedPosition& other) const;
-};
-
-struct MoveRollbackData
-{
-	CastlingRights castlingRights; //castling rights before the move
-	std::optional<Square> enpassant; //en passant square before the move
+	CastlingRights castlingRights;
+	uint64_t enpassant;
 	uint32_t halfmoves, fullmoves;
-	std::array<Piece, 64> board;
+	bool whitesTurn;
+	Board board;
+
+	bool operator==(const StateStackEntry& rhs) const
+	{
+		return whitesTurn == rhs.whitesTurn && castlingRights == rhs.castlingRights && board == rhs.board && enpassant == rhs.enpassant;
+	}
 };
 
 struct MoveResult
 {
 	bool applied;
 	MoveCheckStatus checkStatus;
-	MoveRollbackData rollbackData;
+	uint32_t plyIndex;
 };
 
 struct CastlingSquares
@@ -74,80 +58,76 @@ struct CastlingSquares
 	Square kingStart, kingEnd, rookStart, rookEnd;
 	CastlingSquares(MoveType type);
 };
-typedef StaticArray<Move, 4100> MoveList;
+
+
+typedef PreallocatedArray<Move, 280> MoveList; //should probably fit all legal moves in classical, right?
+struct DerivedData
+{
+	//std::array<uint64_t, 64> motionMatrix; //can piece at square i move into square j?
+	uint64_t squaresAttackedByBlack, squaresAttackedByWhite;
+	uint32_t whiteKingIndex, blackKingIndex;
+	bool whiteChecked, blackChecked;
+	PreallocatedArray<Move, 280> legalMoveList;
+};
+
+struct DeriveOptions
+{
+	bool makeLegalMoveList = true;
+	bool skipPinChecks = false;
+};
+
 struct GameState
 {
 public:
+	GameState();
 	SearchReturn findBestMove(SearchParams params);
 private:
 	SearchReturn findBestMoveInner(int remainingDepth, float alpha, float beta, const SearchParams& params);
+
+	//Returns a bit mask of squares a rook at square ind attacks. This only checks obstructions, not legality of moves.
+	//rookAllies are used to filter out allies and paths blocked by them and must be a mask of pieces same team as the rook in question
+	uint64_t getSquaresAttackedByRookAt(uint64_t ind, uint64_t rookAllies);
+
+	//Returns a bit mask of squares a bishop at square ind attacks. This only checks obstructions, not legality of moves.
+	//bishopAllies are used to filter out allies and paths blocked by them and must be a mask of pieces same team as the bishop in question
+	uint64_t getSquaresAttackedByBishopAt(uint64_t ind, uint64_t bishopAllies);
+
+	//Returns true if square is attacked for: white if forWhite == true, else for black
+	bool isSquareAttacked(uint64_t sqInd, bool forWhite);
 public:
-	std::array<Piece, 64> board;
-	CastlingRights castlingRights;
-	bool whitesTurn;
-	int halfmoves, fullmoves;
-	std::optional<Square> enpassant;
+	PreallocatedArray<StateStackEntry, 10240> stateStack;
 
-	std::optional<GameStatus> gameStatus;
-	std::map<CompressedPosition, int> seenPositions;
+	__declspec(property(get = getTopStateStackEntry)) StateStackEntry& st;
+	__declspec(property(get = getCurrentTurnTeam)) Team currTurnTeam;
 
+	Team getCurrentTurnTeam();
+	StateStackEntry& getTopStateStackEntry();
+	std::optional<GameStatus> gameStatus = GameStatus::ONGOING;
+
+	Piece getPieceAt(Square s);
+
+	//Sets the game's termination status based on it's current position (if useDD is null) or using existing derived data (if it is not null)
+	//The latter case is useful when the status needs to be updated while the current game state's data is already available
+	//(i.e. reusing the DD after generating legal moves)
+	void updateStatus(const DerivedData* useDD = nullptr);
+	//derives various useful data from current game state, such as:
+	//legal moves on this position
+	//squares attacked by black/white
+	//whether or not a king is in check
+	DerivedData deriveStateData(DeriveOptions opts = {});
+
+	static GameState fromFEN(const std::string& fen);
+	std::string toFEN();
 	static GameState newGame();
-
-	void updateStatus();
-
-	//Resets the game state to the standard starting position
 	void reset();
 
-	void getAllLegalMoves(MoveList& ret);
-	void getAllLegalMovesForPieceAt(Square sq, MoveList& ret);
-
-	Piece& getPieceAt(Square s);
-	//const Piece& getPieceAt(int x, int y) const;
-	//Piece& getPieceAt(const char* algebraic);
-	//const Piece& getPieceAt(const char* algebraic) const;
-
-	static GameState fromFEN(const std::string& fenStr);
-
-	static std::string xyToAlgebraic(int x, int y);
-
-	std::string toFEN();
-
-	//Converts algebraic notation of a square to it's XY coordinated (i.e "a8" -> (0,0), "h1" -> (7,7))
-	void rankAndFileToXY(const char* rankAndFile, int& retX, int& retY) const;
-
-	//Returns path reachable by using discrette steps of (sizeX,sizeY)
-	//If path is obstructed by an allied piece, the path ends on a square right before it
-	//If path is obstructed by enemy piece, path ends on is it's square
-	//If path is not obstructed at all, path ends on last location inside board's bounds.
-	//Undefined behavior for out of bounds starting location.
-	//If no steps can be made, stepCount is 0 and steps data is garbage.
-	//Data at steps[stepCount] and after it is garbage
-	//Path contains at most 7 points (unobstructed sliding piece movement from the corner, not counting the piece itself)
-	Path getPath(int startX, int startY, int stepX, int stepY);
-
-	//returns true if the square (x,y) is attacked by enemies of the input team 
-	//(i.e. true for white means that black pieces attack this square), or false otherwise
-	bool squareIsAttackedFor(int x, int y, Team team);
-
-	//Returns pair of references to pieces at locations hardcoded based on type of the move supplied.
-	//For castling moves, first element of the returned pair is the reference to starting king square
-	//Second - target rook square
-	//Undefined behavior for non-castling inputs
-	//Note that it returns only the references to pieces at target squares, they are not guaranteed to be occupied, or be kings or rooks, castling legality has to be checked separately.
-	std::pair<Piece&, Piece&> getPiecesAtCaslingSquares(Move move);
-
-	//Checks if this move is a legal castling move for this board. Returns false for non-castling moves.
-	MoveCheckStatus isLegalCastlingMove(Move move);
-
-	//Checks if a move is legal, considering input Move adversarial (checking the validity of inputs, legality of the move, king checks). There're no requirements for src, dst squares or movement types, but hasMoved flag is trusted as-is (since it's filled out by our engine)
-	MoveCheckStatus isLegalMove(Move move);
-
-	//Returns true if team's king is checked or false if he's not.
-	//Returns false if there is no king for this team on the board
-	//Throws an exception if team is NONE
-	bool isTeamsKingChecked(Team team);
-
 	MoveResult tryMakeMove(const Move& move); //Applies move if it is legal 
-	MoveRollbackData makeMove(const Move& move); //Applies move without validation
-	void rollbackMove(const MoveRollbackData& rollbackData); //rolls back move. Only supports rolling back the last move applied.
+	//Applies the move without validation. If rememberPosition is false, the resulting position will not be remembered for the purposes of 3-fold repetition rule.
+	//Returns the ply index of the move made (1 on first white's move in the start of the game, increments by one for each ply)
+	//This index is the same as state stack index of the position after the move is applied
+	uint32_t makeMove(const Move& move, bool rememberPosition = true);
+
+	std::string moveToAlgebraicNotation(Move move);
+
+	void rollbackMove(bool forgetPosition = true); //rolls back move. Only supports rolling back the last move applied. if forgetPosiition is false, will not erase the position from 3-fold repetition table
 };

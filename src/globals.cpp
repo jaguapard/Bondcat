@@ -1,5 +1,6 @@
 #include "globals.h"
-
+#include <SDL3/SDL_image.h>
+/*
 const std::vector<Move>& Globals::getPieceMoveCandidates(Square from, PieceType type)
 {
     typedef std::vector<Move> movelist_t;
@@ -46,4 +47,98 @@ const std::vector<Move>& Globals::getPieceMoveCandidates(Square from, PieceType 
         }();
     
 	return lut[from.toIndex() * N + int(type)];
+}*/
+
+void Globals::init()
+{
+	for (auto& it : Globals::kingMoves) it = 0;
+	for (auto& it : Globals::queenMoves) it = 0;
+	for (auto& it : Globals::rookMoves) it = 0;
+	for (auto& it : Globals::bishopMoves) it = 0;
+	for (auto& it : Globals::knightMoves) it = 0;
+	for (auto& it : Globals::blackPawnMoves) it = 0;
+	for (auto& it : Globals::whitePawnMoves) it = 0;
+
+	for (Square from : Square::all_inBounds())
+	{
+		for (Square to : Square::all_inBounds())
+		{
+			int dx = to.x - from.x;
+			int dy = to.y - from.y;
+			int i = from.toIndex();
+			uint64_t dstBit = 1ull << (to.toIndex());
+
+			if (from == to) continue;
+			if ((std::abs(dx) == 1 && std::abs(dy) == 2) || (std::abs(dx) == 2 && std::abs(dy) == 1)) knightMoves[i] |= dstBit;
+			if (abs(dx) == abs(dy)) { queenMoves[i] |= dstBit; bishopMoves[i] |= dstBit; }
+			if (dx == 0 || dy == 0) { queenMoves[i] |= dstBit; rookMoves[i] |= dstBit; }
+			if (abs(dx) <= 1 && abs(dy) <= 1) kingMoves[i] |= dstBit;
+
+			if (dy == 1 && dx == 0) blackPawnMoves[i] |= dstBit;
+			if ((dy == 1 || dy == 2) && dx == 0 && from.y == 1) blackPawnMoves[i] |= dstBit;
+			if (dy == -1 && dx == 0) whitePawnMoves[i] |= dstBit;
+			if ((dy == -1 || dy == -2) && dx == 0 && from.y == 6) whitePawnMoves[i] |= dstBit;
+
+			if (dy == 1 && abs(dx) == 1) blackPawnCaptures[i] |= dstBit;
+			if (dy == -1 && abs(dx) == 1) whitePawnCaptures[i] |= dstBit;
+		}
+	}
+
+	for (Square from : Square::all_inBounds())
+	{
+		auto slider_run = [&](int sx, int sy, uint64_t& writeBack) {
+			int x = from.x + sx; int y = from.y + sy;
+			writeBack = 0;
+			while (Square(x, y).inBounds())
+			{
+				writeBack |= 1ull << Square(x, y).toIndex();
+				x += sx; y += sy;
+			}
+			};
+
+		int k = from.toIndex();
+		using enum Direction;
+		slider_run(-1, -1, directionRaysByOrigin[k][int(LEFT_UP)]);
+		slider_run(1, -1, directionRaysByOrigin[k][int(RIGHT_UP)]);
+		slider_run(-1, 1, directionRaysByOrigin[k][int(LEFT_DOWN)]);
+		slider_run(1, 1, directionRaysByOrigin[k][int(RIGHT_DOWN)]);
+
+		slider_run(-1, 0, directionRaysByOrigin[k][int(LEFT)]);
+		slider_run(1, 0, directionRaysByOrigin[k][int(RIGHT)]);
+		slider_run(0, -1, directionRaysByOrigin[k][int(UP)]);
+		slider_run(0, 1, directionRaysByOrigin[k][int(DOWN)]);
+	}
+}
+
+void Globals::initGUI(SDL_Renderer* rend)
+{
+	pieceTextures.clear();
+	std::pair<PieceType, std::string> paths[] = {
+		{ PieceType::PAWN, "pawn" },
+		{ PieceType::ROOK, "rook" },
+		{ PieceType::KING, "king" },
+		{ PieceType::QUEEN, "queen" },
+		{ PieceType::BISHOP, "bishop" },
+		{ PieceType::KNIGHT, "knight" },
+	};
+	for (auto& it : paths)
+	{
+		std::string pth_w = "textures/white_" + it.second + ".png";
+		std::string pth_b = "textures/black_" + it.second + ".png";
+		SDL_Surface* s1 = IMG_Load(pth_w.c_str());
+		SDL_Surface* s2 = IMG_Load(pth_b.c_str());
+
+		PieceTexture t;
+		t.type = it.first;
+		t.team = Team::WHITE;
+		t.tex = SDL_CreateTextureFromSurface(rend, s1);
+		t.w = s1->w;
+		t.h = s1->h;
+		pieceTextures.emplace_back(t);
+		t.team = Team::BLACK;
+		t.tex = SDL_CreateTextureFromSurface(rend, s2);
+		t.w = s2->w;
+		t.h = s2->h;
+		pieceTextures.emplace_back(t);
+	}
 }

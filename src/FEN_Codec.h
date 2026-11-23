@@ -32,6 +32,11 @@ struct CastlingRights
 	{
 		return !whiteKingside && !whiteQueenside && !blackKingside && !blackQueenside;
 	}
+
+	bool operator==(const CastlingRights& rhs) const
+	{
+		return whiteKingside == rhs.whiteKingside && blackKingside == rhs.blackKingside && whiteQueenside == rhs.whiteQueenside && blackQueenside == rhs.blackQueenside;
+	}
 };
 
 struct FEN_Codec
@@ -40,7 +45,7 @@ struct FEN_Codec
 	CastlingRights castlingRights;
 	bool whitesTurn;
 	std::optional<Square> enpassant; //current turn's en passant square
-	std::array<Piece, 64> board; //FEN notated pieces or ' ' (space) for empty squares
+	std::array<Piece, 64> board = { TeamedPieceType::EMPTY }; //board as array of pieces. default-initialized to fully empty board
 
 	FEN_Codec() = default;
 	FEN_Codec(const std::string& fen);	//extract data from FEN string

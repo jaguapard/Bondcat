@@ -28,7 +28,7 @@ void BoardView::draw(SDL_Renderer* rend, BoardDrawCtx& ctx)
 	{
 		for (int x = 0; x < 8; ++x)
 		{
-
+			Square sq(x, y);
 			SDL_FRect rect;
 			rect.x = squareW * x;
 			rect.y = squareH * y;
@@ -70,20 +70,27 @@ void BoardView::draw(SDL_Renderer* rend, BoardDrawCtx& ctx)
 					}
 				}
 
-				for (auto& it : ctx.circlesAt)
+				if (ctx.greenSquares.find(sq) != ctx.greenSquares.end())
 				{
-					if (it.x == x && it.y == y)
-					{
-						SDL_SetRenderDrawColor(rend, 160, 160, 160, 255);
-						SDL_FRect small = rect;
-						float smallScale = 0.25;
-						small.w *= smallScale;
-						small.h *= smallScale;
-						small.x += (1 - smallScale)/2 * rect.w;
-						small.y += (1 - smallScale)/2 * rect.h;
+					SDL_SetRenderDrawColor(rend, 255, 0, 0, 64);
+					SDL_RenderFillRect(rend, &rect);
+				}
+				if (ctx.yellowSquares.find(sq) != ctx.yellowSquares.end())
+				{
+					SDL_SetRenderDrawColor(rend, 255, 255, 0, 64);
+					SDL_RenderFillRect(rend, &rect);
+				}
+				if (ctx.circlesAt.find(sq) != ctx.circlesAt.end())
+				{
+					SDL_SetRenderDrawColor(rend, 160, 160, 160, 255);
+					SDL_FRect small = rect;
+					float smallScale = 0.25;
+					small.w *= smallScale;
+					small.h *= smallScale;
+					small.x += (1 - smallScale) / 2 * rect.w;
+					small.y += (1 - smallScale) / 2 * rect.h;
 
-						SDL_RenderFillRect(rend, &small);
-					}
+					SDL_RenderFillRect(rend, &small);
 				}
 			}
 

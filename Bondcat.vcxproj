@@ -21,7 +21,7 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>18.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{9454934A-BE02-41BC-95D4-5FC75352EF45}</ProjectGuid>
+    <ProjectGuid>{69075CBC-473F-9C54-21D7-BAA85106D375}</ProjectGuid>
     <RootNamespace>ChessEngine</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
     <ProjectName>Bondcat</ProjectName>
@@ -85,6 +85,7 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(LIB)\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <StackReserveSize>64000000</StackReserveSize>
     </Link>
     <Manifest>
       <EnableSegmentHeap>true</EnableSegmentHeap>
@@ -105,6 +106,7 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(LIB)\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <StackReserveSize>64000000</StackReserveSize>
     </Link>
     <Manifest>
       <EnableSegmentHeap>true</EnableSegmentHeap>
@@ -120,11 +122,14 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalIncludeDirectories>$(INCLUDE);lib/fathom;$(INCLUDE)</AdditionalIncludeDirectories>
+      <InlineFunctionExpansion>Default</InlineFunctionExpansion>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(LIB)\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <StackReserveSize>64000000</StackReserveSize>
+      <AdditionalOptions>-flto=thin %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <Manifest>
       <EnableSegmentHeap>true</EnableSegmentHeap>
@@ -145,6 +150,7 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(LIB)\x64\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <StackReserveSize>64000000</StackReserveSize>
     </Link>
     <Manifest>
       <EnableSegmentHeap>true</EnableSegmentHeap>
@@ -152,25 +158,30 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="lib\fathom\tbprobe.cpp" />
+    <ClCompile Include="src\Board.cpp" />
     <ClCompile Include="src\BoardView.cpp" />
     <ClCompile Include="src\BondcatException.cpp" />
+    <ClCompile Include="src\enums.cpp" />
     <ClCompile Include="src\FEN_Codec.cpp" />
     <ClCompile Include="src\GameState.cpp" />
     <ClCompile Include="src\globals.cpp" />
+    <ClCompile Include="src\GUI_Game.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\Move.cpp" />
     <ClCompile Include="src\Square.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\Board.h" />
     <ClInclude Include="src\BoardView.h" />
     <ClInclude Include="src\enums.h" />
     <ClInclude Include="src\FEN_Codec.h" />
     <ClInclude Include="src\GameState.h" />
     <ClInclude Include="src\globals.h" />
+    <ClInclude Include="src\GUI_Game.h" />
     <ClInclude Include="src\Move.h" />
     <ClInclude Include="src\Piece.h" />
     <ClInclude Include="src\Square.h" />
-    <ClInclude Include="src\StaticArray.h" />
+    <ClInclude Include="src\PreallocatedArray.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="CHANGELOG.md" />
