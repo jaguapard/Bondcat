@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.4: Kestrel
+### General
+- Internal architecture changed to bitboards and bit ray casting for obstruction checks resulting in ~35-40x speedup at same depth compared to v0.3.
+- Fixed en passant and castling rights not being concerned for 3-fold repetition
+- Fixed search not terminating on encountering 50 move rule draw
+- Default search depth changed to 5 in both UCI and GUI modes
+- Added FEN mode, imports position from a FEN string and disables the engine
+
+### UCI
+- Added output of search time to info string
+
+### GUI
+- Added full game output in algebraic notation after each move, importable to many other chess tools
+- Press H to show squares currently attacked by the enemy
+- Engine can now play as any team (T toggles the team) and be disabled mid-game (E)
+
 ## v0.3: Bee
 
 Small, but hard-working and achieving decent results.

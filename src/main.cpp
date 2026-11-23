@@ -29,7 +29,7 @@
 void UCI()
 {
 	GameState gameState;
-	std::string idString = "id name Bondcat v0.4: Caracal\nid author jaguapard\nuciok\n";
+	std::string idString = "id name Bondcat v0.4: Kestrel\nid author jaguapard\nuciok\n";
 	std::cout << idString;
 	while (true)
 	{
