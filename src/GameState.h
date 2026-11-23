@@ -106,7 +106,10 @@ public:
 
 	Piece getPieceAt(Square s);
 
-	void updateStatus();
+	//Sets the game's termination status based on it's current position (if useDD is null) or using existing derived data (if it is not null)
+	//The latter case is useful when the status needs to be updated while the current game state's data is already available
+	//(i.e. reusing the DD after generating legal moves)
+	void updateStatus(const DerivedData* useDD = nullptr);
 	//derives various useful data from current game state, such as:
 	//legal moves on this position
 	//squares attacked by black/white

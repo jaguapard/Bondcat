@@ -334,10 +334,10 @@ Piece GameState::getPieceAt(Square s)
 	return EMPTY;
 }
 
-void GameState::updateStatus()
+void GameState::updateStatus(const DerivedData* useDD)
 {
 	//Team nextTeamToMove = st.whitesTurn ? Team::WHITE : Team::BLACK;
-	DerivedData dd = deriveStateData();
+	const DerivedData& dd = useDD ? *useDD : deriveStateData();
 	bool kingChecked = st.whitesTurn ? dd.whiteChecked : dd.blackChecked;
 	if (dd.legalMoveList.size() == 0)
 	{
