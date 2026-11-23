@@ -152,6 +152,8 @@ SearchReturn GameState::findBestMoveInner(int remainingDepth, float alpha, float
 	ret.nodesSearched++;
 
 	std::optional<float> terminalNodeEvalFromWhitesPerspective; //this will be used for game-ended and search out of depth nodes
+	DerivedData dd = deriveStateData();
+	this->updateStatus(&dd);
 	//First, see if we're already done before any search
 	if (*this->gameStatus != GameStatus::ONGOING)
 	{
@@ -172,13 +174,11 @@ SearchReturn GameState::findBestMoveInner(int remainingDepth, float alpha, float
 	}
 	else if (remainingDepth > 0) //else if there's depth remaining, search recursively
 	{
-		DerivedData dd = deriveStateData();
 		ret.evaluation = -INFINITY;
 		for (auto& move : dd.legalMoveList)
 		{
 			//if (move.from == Square("f3") && move.to == Square("g2")) __debugbreak();
 			this->makeMove(move);
-			this->updateStatus();
 
 			SearchReturn subsearch = findBestMoveInner(remainingDepth - 1, -beta, -alpha, params);
 			ret.nodesSearched += subsearch.nodesSearched;
@@ -209,7 +209,6 @@ SearchReturn GameState::findBestMoveInner(int remainingDepth, float alpha, float
 				std::popcount(st.board.black & st.board.knights) * 3 +
 				std::popcount(st.board.black & st.board.pawns) * 1;
 
-			DerivedData dd = deriveStateData();
 			float mobilityBonus = dd.legalMoveList.size() * 0.02;
 
 			if (st.whitesTurn) whiteScore += mobilityBonus;
