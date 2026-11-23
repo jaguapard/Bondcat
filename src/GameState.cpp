@@ -184,9 +184,12 @@ SearchReturn GameState::findBestMoveInner(int remainingDepth, float alpha, float
 			SearchReturn subsearch = findBestMoveInner(remainingDepth - 1, -beta, -alpha, params);
 			ret.nodesSearched += subsearch.nodesSearched;
 			//in main search (not game-ended), the algorithm immediately returns current player's advantage, so no need to change it
-			if (-subsearch.evaluation > ret.evaluation) ret.bestMove = move;
-			ret.evaluation = std::max(-subsearch.evaluation, ret.evaluation);
-			alpha = std::max(alpha, ret.evaluation);
+			if (-subsearch.evaluation > ret.evaluation)
+			{
+				ret.bestMove = move;
+				ret.evaluation = -subsearch.evaluation;
+				alpha = -subsearch.evaluation;
+			}
 
 			this->rollbackMove();
 			if (alpha >= beta) break;
