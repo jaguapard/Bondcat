@@ -1,17 +1,21 @@
 #pragma once
 #include <array>
 
-//Pre-allocated array that 
+//Pre-allocated array with fixed max size. Starts out empty
 template <typename T, size_t N>
-class StaticArray
+class PreallocatedArray
 {
 private:
 	size_t count = 0;
 	std::array<T, N> arr;
 public:
+	bool isEmpty() const
+	{
+		return size() == 0;
+	}
 	void push_back(const T& value)
 	{
-		//if (count >= N) throw std::out_of_range("StaticArray overflow");
+		//if (count >= N) throw std::out_of_range("PreallocatedArray overflow");
 		arr[count++] = value;
 	}
 

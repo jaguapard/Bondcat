@@ -45,6 +45,12 @@
     <ClCompile Include="src\Board.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\enums.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\GUI_Game.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Piece.h">
@@ -71,10 +77,13 @@
     <ClInclude Include="src\FEN_Codec.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\StaticArray.h">
+    <ClInclude Include="src\PreallocatedArray.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\Board.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\GUI_Game.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

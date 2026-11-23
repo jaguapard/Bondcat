@@ -8,7 +8,7 @@
 #include <assert.h>
 #include <chrono>
 #include <map>
-#include "StaticArray.h"
+#include "PreallocatedArray.h"
 #include "FEN_Codec.h"
 
 #include "Board.h"
@@ -87,14 +87,14 @@ struct CastlingSquares
 };
 
 
-typedef StaticArray<Move, 280> MoveList; //should probably fit all legal moves in classical, right?
+typedef PreallocatedArray<Move, 280> MoveList; //should probably fit all legal moves in classical, right?
 struct DerivedData
 {
 	//std::array<uint64_t, 64> motionMatrix; //can piece at square i move into square j?
 	uint64_t squaresAttackedByBlack, squaresAttackedByWhite;
 	uint32_t whiteKingIndex, blackKingIndex;
 	bool whiteChecked, blackChecked;
-	StaticArray<Move, 280> legalMoveList;
+	PreallocatedArray<Move, 280> legalMoveList;
 };
 
 struct DeriveOptions
@@ -122,7 +122,7 @@ private:
 	//Returns true if square is attacked for: white if forWhite == true, else for black
 	bool isSquareAttacked(uint64_t sqInd, bool forWhite);
 public:
-	StaticArray<StateStackEntry, 10240> stateStack;
+	PreallocatedArray<StateStackEntry, 10240> stateStack;
 
 	__declspec(property(get = getTopStateStackEntry)) StateStackEntry& st;
 	__declspec(property(get = getCurrentTurnTeam)) Team currTurnTeam;
