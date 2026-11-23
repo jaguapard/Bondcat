@@ -224,100 +224,59 @@ SearchReturn GameState::findBestMoveInner(int remainingDepth, float alpha, float
 	return ret;
 }
 
-uint64_t GameState::getSquaresAttackedByRookAt(uint64_t ind, uint64_t rookAllies)
+
+//Scans a ray originating at sqaure ind going in direction D
+//Checks for obstructions on the way and returns the bit mask of the squares the ray can travel to unimpeded
+//Correctly takes into account allies and enemies (stops at first enemy (capture) or right before first ally on the way)
+template<Direction D>
+uint64_t scanRay(uint64_t ind, uint64_t allies, uint64_t enemies, const Board& board)
 {
-	using enum Direction;
-	const auto& rays = Globals::directionRaysByOrigin;
-	uint64_t paths = 0, ray, occludersMask, firstOccluderInd, notEmpty = st.board.white | st.board.black;
+	uint64_t ray = Globals::directionRaysByOrigin[ind][size_t(D)];
+	uint64_t notEmpty = board.white | board.black;
+	uint64_t occludersMask = ray & notEmpty;
+	if (!occludersMask) return ray;
 
 	//TODO: lzcnt/tzcnt return 64 for all zeroes, and shifting by that is UB (in fact, it breaks on my system by rejecting paths that are correct). 
 	//Thus, branches for now. Think about ways of removing branches
-	ray = rays[ind][int(LEFT)];
-	occludersMask = ray & notEmpty;
-	if (occludersMask)
-	{
-		firstOccluderInd = 63 - _lzcnt_u64(ray & notEmpty); //left path: find first occluder to the left, starting from bottom-right to left to top
-		paths |= ray & ~((1ull << firstOccluderInd) - 1); //this bitwise magic does everything to include first occluder into pathable squares. Allies will be filtered later
-	}
-	else paths |= ray;
-
-	ray = rays[ind][int(RIGHT)];
-	occludersMask = ray & notEmpty;
-	if (occludersMask)
-	{
-		firstOccluderInd = _tzcnt_u64(occludersMask); //right path: scan from top-left to right to bottom
-		uint64_t shiftMsk = 1ull << firstOccluderInd; //shift by variable 64 leaves input untouched!
-		paths |= ray & ((shiftMsk << 1) - 1);
-	}
-	else paths |= ray;
-
-	ray = rays[ind][int(UP)];
-	occludersMask = ray & notEmpty;
-	if (occludersMask)
+	using enum Direction;
+	uint64_t firstOccluderInd; //index of first occluder on the path, does not differentiate teams
+	uint64_t pathable; //mask indicating pathable squares (1 for steps before first occluder, 0 after)
+	//tzcnt and lzcnt basically scan the board in different directions, thus, the order defines first occluder index and what counts as "before first occluder"
+	if constexpr (D == LEFT || D == UP || D == LEFT_UP || D == RIGHT_UP)
 	{
 		firstOccluderInd = 63 - _lzcnt_u64(occludersMask);
-		paths |= ray & ~((1ull << firstOccluderInd) - 1);
+		pathable = ray & ~((1ull << firstOccluderInd) - 1);
 	}
-	else paths |= ray;
-
-	ray = rays[ind][int(DOWN)];
-	occludersMask = ray & notEmpty;
-	if (occludersMask)
+	else
 	{
 		firstOccluderInd = _tzcnt_u64(occludersMask);
-		uint64_t shiftMsk = 1ull << firstOccluderInd; //shift by variable 64 leaves input untouched!
-		paths |= ray & ((shiftMsk << 1) - 1);
+		uint64_t shiftMsk = 1ull << firstOccluderInd; //since shift by variable 64 is UB, an occluder at 63 (h1) would break naive 1ull<<(firstOccluderInd+1))
+		pathable = ray & ((shiftMsk << 1) - 1);
 	}
-	else paths |= ray;
 
-	return paths & ~rookAllies;
+	pathable &= ~allies;
+	return pathable;
+}
+uint64_t GameState::getSquaresAttackedByRookAt(uint64_t ind, uint64_t rookAllies)
+{
+	using enum Direction;
+	uint64_t empty = ~(st.board.white | st.board.black);
+	uint64_t paths = scanRay<LEFT>(ind, rookAllies, ~rookAllies & ~empty, st.board);
+	paths |= scanRay<RIGHT>(ind, rookAllies, ~rookAllies & ~empty, st.board);
+	paths |= scanRay<UP>(ind, rookAllies, ~rookAllies & ~empty, st.board);
+	paths |= scanRay<DOWN>(ind, rookAllies, ~rookAllies & ~empty, st.board);
+	return paths;
 }
 
 uint64_t GameState::getSquaresAttackedByBishopAt(uint64_t ind, uint64_t bishopAllies)
 {
 	using enum Direction;
-	const auto& rays = Globals::directionRaysByOrigin;
-	uint64_t paths = 0, ray, occludersMask, firstOccluderInd, notEmpty = st.board.white | st.board.black;
-
-	ray = rays[ind][int(LEFT_UP)];
-	occludersMask = ray & notEmpty;
-	if (occludersMask)
-	{
-		firstOccluderInd = 63-_lzcnt_u64(occludersMask);
-		paths |= ray & ~((1ull << firstOccluderInd) - 1);
-	}
-	else paths |= ray;
-
-	ray = rays[ind][int(RIGHT_UP)];
-	occludersMask = ray & notEmpty;
-	if (occludersMask)
-	{
-		firstOccluderInd = 63 - _lzcnt_u64(occludersMask);
-		paths |= ray & ~((1ull << firstOccluderInd) - 1);
-	}
-	else paths |= ray;
-
-	ray = rays[ind][int(LEFT_DOWN)];
-	occludersMask = ray & notEmpty;
-	if (occludersMask)
-	{
-		firstOccluderInd = _tzcnt_u64(occludersMask);
-		uint64_t shiftMsk = 1ull << firstOccluderInd;
-		paths |= ray & ((shiftMsk << 1) - 1);
-	}
-	else paths |= ray;
-
-	ray = rays[ind][int(RIGHT_DOWN)];
-	occludersMask = ray & notEmpty;
-	if (occludersMask)
-	{
-		firstOccluderInd = _tzcnt_u64(occludersMask);
-		uint64_t shiftMsk = 1ull << firstOccluderInd;
-		paths |= ray & ((shiftMsk << 1) - 1);
-	}
-	else paths |= ray;
-
-	return paths & ~bishopAllies;
+	uint64_t empty = ~(st.board.white | st.board.black);
+	uint64_t paths = scanRay<LEFT_UP>(ind, bishopAllies, ~bishopAllies & ~empty, st.board);
+	paths |= scanRay<RIGHT_UP>(ind, bishopAllies, ~bishopAllies & ~empty, st.board);
+	paths |= scanRay<LEFT_DOWN>(ind, bishopAllies, ~bishopAllies & ~empty, st.board);
+	paths |= scanRay<RIGHT_DOWN>(ind, bishopAllies, ~bishopAllies & ~empty, st.board);
+	return paths;
 }
 
 bool GameState::isSquareAttacked(uint64_t sqInd, bool forWhite)
